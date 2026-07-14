@@ -22,6 +22,48 @@ enum class ContextStatus : uint8_t {
   Unknown,
 };
 
+enum class SafetyState : uint8_t {
+  Normal,
+  Warming,
+  Risk,
+  SensorFault,
+};
+
+enum class SafetyCause : uint8_t {
+  None,
+  Flame,
+  Mq2,
+  Water,
+  SafetySensorFault,
+};
+
+enum class ServoPosition : uint8_t {
+  Hold,
+  Study,
+  Rest,
+  VentilationOpen,
+  Energy,
+  SafetyClosed,
+};
+
+enum class BuzzerMode : uint8_t {
+  Off,
+  Alarm,
+  Intermittent,
+};
+
+enum class RgbState : uint8_t {
+  Off,
+  Study,
+  Orange,
+  BlueLow,
+  Cyan,
+  Yellow,
+  Red,
+  BlueRed,
+  Gray,
+};
+
 struct SensorSample {
   float value = 0.0F;
   bool valid = false;
@@ -67,4 +109,52 @@ struct ContextResult {
   EvidenceList opposing;
   EvidenceList missing;
   bool confirmedByUser = false;
+};
+
+constexpr size_t MAX_SAFETY_CAUSES = 4;
+
+struct SafetyCauseList {
+  SafetyCause items[MAX_SAFETY_CAUSES] = {};
+  uint8_t count = 0;
+
+  bool contains(SafetyCause cause) const {
+    for (uint8_t index = 0; index < count; ++index) {
+      if (items[index] == cause) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void add(SafetyCause cause) {
+    if (cause != SafetyCause::None && count < MAX_SAFETY_CAUSES && !contains(cause)) {
+      items[count++] = cause;
+    }
+  }
+};
+
+struct ActuatorTarget {
+  uint8_t fanPercent = 0;
+  ServoPosition servoPosition = ServoPosition::Hold;
+  bool relayOn = false;
+  BuzzerMode buzzerMode = BuzzerMode::Off;
+  RgbState rgbState = RgbState::Off;
+};
+
+struct ActuatorOverride {
+  ActuatorTarget target;
+  bool fan = false;
+  bool servo = false;
+  bool relay = false;
+  bool buzzer = false;
+  bool rgb = false;
+};
+
+struct SafetyResult {
+  SafetyState state = SafetyState::Normal;
+  SafetyCause primary = SafetyCause::None;
+  SafetyCauseList causes;
+  bool overrideActive = false;
+  bool buzzerRequested = false;
+  ActuatorOverride overrideTarget;
 };

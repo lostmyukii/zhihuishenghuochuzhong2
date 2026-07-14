@@ -32,6 +32,20 @@ constexpr uint32_t TELEMETRY_INTERVAL_MS = 500;
 constexpr uint32_t MQ2_WARMUP_MS = 30000;
 constexpr uint8_t DIGITAL_CONFIRM_SAMPLES = 3;
 constexpr uint8_t DIGITAL_RECOVERY_SAMPLES = 3;
+constexpr uint16_t PROVISIONAL_MQ2_ALERT_RAW = 2600;
+constexpr uint16_t PROVISIONAL_MQ2_RECOVERY_RAW = 2400;
+constexpr uint32_t FAST_SAFETY_STALE_MS = 1500;
+
+constexpr uint8_t FAN_LOW_PERCENT = 35;
+constexpr uint8_t FAN_VENTILATION_PERCENT = 70;
+constexpr uint8_t FAN_ALERT_PERCENT = 100;
+
+constexpr bool ACTUATORS_ARMED = false;
+constexpr bool BUZZER_ARMED = false;
+constexpr bool FAN_ARMED = false;
+constexpr bool SERVO_ARMED = false;
+constexpr bool RELAY_ARMED = false;
+constexpr bool RGB_ARMED = false;
 
 // Stage-3 starting points only. Real-board calibration must replace these values.
 constexpr uint16_t PROVISIONAL_LIGHT_BRIGHT_RAW = 1800;
