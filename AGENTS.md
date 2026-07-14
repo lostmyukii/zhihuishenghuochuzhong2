@@ -24,15 +24,26 @@
 
 ## 当前阶段
 
-阶段0和阶段1已经完成：仓库基线、最小PIO协议骨架、7项契约测试和首次纯编译均已通过。当前不得自行扩大到阶段2。
+阶段0、阶段1和阶段2已经完成：仓库基线、最小PIO协议骨架、`--mock-board` 网关、本地Dashboard、协议测试和纯编译均已通过。当前不得自行扩大到阶段3。
 
 - 固件允许输出 `hello`、未就绪的 `telemetry`，并对最小白名单命令返回 `ack`。
-- 当前不得读取传感器或驱动执行器；不得用默认数值冒充真实数据。
+- `tools/n16r8_gateway.py --mock-board` 只产生显式 `mock=true` 的模拟数据，不得把它描述为真板采样。
+- Dashboard只有在收到新鲜mock `telemetry` 时才能显示“模拟板在线”；WebSocket已连接、页面已渲染或收到旧数据都不等于真板在线。
+- 当前不得在固件中读取传感器或驱动执行器；不得用mock默认数值冒充真实数据。
 - 遥测必须明确显示 `sensorsReady=false`、`actuatorsReady=false`、`contextReady=false`、`safetyReady=false`。
-- 当前只运行契约测试和 `pio run` 编译，不执行 `upload`、`write_flash`、`erase_flash`、串口烧录或固件恢复。
+- 当前只运行契约测试和 `pio run` 编译，并可运行阶段2的本地mock网关与静态Dashboard；不执行 `upload`、`write_flash`、`erase_flash`、串口烧录或固件恢复。
 - 未经用户再次明确授权，不接触开发板Flash、NVS、Wi-Fi或小智激活数据。
 
 2026-07-14最终复编译证据：PlatformIO显示 `[SUCCESS]`，RAM使用 `18572 / 327680 bytes`，Flash使用 `275109 / 6553600 bytes`；本次没有执行上传或串口操作。
+
+阶段2固定本地端口：WebSocket网关 `127.0.0.1:18766`，静态Dashboard `127.0.0.1:18767`。标准启动命令：
+
+```bash
+python3 tools/n16r8_gateway.py --mock-board --ws-port 18766
+python3 -m http.server 18767 -d dashboard
+```
+
+浏览器入口：`http://127.0.0.1:18767/?ws=ws://127.0.0.1:18766`。阶段2不枚举或占用任何USB串口。
 
 ## 固定GPIO合同
 
@@ -160,6 +171,15 @@ PLATFORMIO_SETTING_ENABLE_TELEMETRY=no \
   /Users/yukii/.platformio/penv/bin/pio run -d firmware -j1
 ```
 
+阶段2验证命令：
+
+```bash
+python3 -m unittest tools/test_gateway.py tools/test_firmware_contract.py -v
+node --test dashboard/tests/*.test.js
+node --check dashboard/context-core.js
+node --check dashboard/app.js
+```
+
 只有命令实际通过才可以记录成功。编译成功不等于真板运行、串口正常或硬件已验收。
 
 ## Git规则
@@ -172,4 +192,4 @@ PLATFORMIO_SETTING_ENABLE_TELEMETRY=no \
 
 ## 下一阶段顺序
 
-阶段1完成后，下一步是阶段2：建立 `--mock-board` 网关和本地Dashboard最小闭环。未经新任务授权，不提前实现传感器采样、执行器驱动、公网部署或真板烧录。
+阶段2完成后，下一步是阶段3：实现真板传感器采样和情境引擎。未经新任务授权，不提前实现传感器采样、执行器驱动、公网部署、真实串口网关或真板烧录。

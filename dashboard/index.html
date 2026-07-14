@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>家庭情境侦探屋 · 本地控制台</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">⌂</span>
+          <div>
+            <p class="eyebrow">N16R8 · 阶段 2</p>
+            <h1>家庭情境侦探屋</h1>
+          </div>
+        </div>
+        <div class="source-badge"><span class="source-dot"></span>Mock 模拟数据</div>
+      </header>
+
+      <section class="truth-strip" aria-label="链路状态">
+        <div class="truth-item"><span>WebSocket</span><strong id="ws-status" data-state="waiting">连接中</strong></div>
+        <div class="truth-item"><span>模拟板</span><strong id="board-status" data-state="waiting">等待实时数据</strong></div>
+        <div class="truth-item"><span>USB</span><strong data-state="muted">阶段 2 未接入</strong></div>
+        <div class="truth-item"><span>MQTT</span><strong data-state="muted">未配置</strong></div>
+        <div class="truth-item endpoint"><span>本地端点</span><strong id="ws-endpoint">—</strong></div>
+      </section>
+
+      <main>
+        <section class="hero-card panel">
+          <div class="hero-copy">
+            <p class="section-kicker">当前推断</p>
+            <h2 id="context-title">等待实时数据</h2>
+            <p id="context-description">启动 mock 网关后，这里才会显示情境判断；页面不会保留过期结论。</p>
+            <div id="alert-banner" class="alert-banner" hidden></div>
+          </div>
+          <div class="score-pair" aria-label="情境置信信息">
+            <div><span>证据覆盖</span><strong id="coverage-value">—</strong></div>
+            <div><span>情境匹配</span><strong id="match-value">—</strong></div>
+          </div>
+        </section>
+
+        <section class="control-panel panel">
+          <div class="section-heading">
+            <div><p class="section-kicker">情境切换</p><h2>六种演示情境</h2></div>
+            <p>每次操作都生成命令 ID，并等待同 ID 的 ack。</p>
+          </div>
+          <div class="segmented-grid mode-grid" id="mode-controls">
+            <button type="button" data-mode="detect">情境侦探</button>
+            <button type="button" data-mode="study">专注学习</button>
+            <button type="button" data-mode="rest">安心休息</button>
+            <button type="button" data-mode="ventilation">通风换气</button>
+            <button type="button" data-mode="energy">节能离家</button>
+            <button type="button" data-mode="custom">自定义</button>
+          </div>
+          <div class="scenario-row">
+            <span>安全覆盖演示</span>
+            <div class="segmented-grid scenario-grid" id="scenario-controls">
+              <button type="button" data-scenario="normal">正常</button>
+              <button type="button" data-scenario="mq2">烟雾/燃气</button>
+              <button type="button" data-scenario="water">积水</button>
+              <button type="button" data-scenario="flame">火焰</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="panel evidence-panel">
+            <div class="section-heading compact"><div><p class="section-kicker">可解释判断</p><h2>证据链</h2></div><span id="context-status" class="mini-tag">—</span></div>
+            <div class="evidence-column"><h3><i class="evidence-dot support"></i>支持证据</h3><ul id="supporting-list"><li>等待实时数据</li></ul></div>
+            <div class="evidence-column"><h3><i class="evidence-dot oppose"></i>反对证据</h3><ul id="opposing-list"><li>—</li></ul></div>
+            <div class="evidence-column"><h3><i class="evidence-dot missing"></i>缺失证据</h3><ul id="missing-list"><li>—</li></ul></div>
+          </article>
+
+          <article class="panel sensor-panel">
+            <div class="section-heading compact"><div><p class="section-kicker">输入层</p><h2>传感器</h2></div><span id="telemetry-age" class="mini-tag">—</span></div>
+            <div class="sensor-grid">
+              <div class="metric"><span>光照</span><strong id="sensor-light">—</strong><small>raw</small></div>
+              <div class="metric"><span>声音</span><strong id="sensor-sound">—</strong><small>raw</small></div>
+              <div class="metric"><span>温度</span><strong id="sensor-temperature">—</strong><small>°C</small></div>
+              <div class="metric"><span>湿度</span><strong id="sensor-humidity">—</strong><small>%</small></div>
+              <div class="metric"><span>人体</span><strong id="sensor-pir">—</strong><small>PIR</small></div>
+              <div class="metric"><span>按键</span><strong id="sensor-keypad">—</strong><small>AD</small></div>
+              <div class="metric"><span>烟雾/燃气</span><strong id="sensor-mq2">—</strong><small>raw</small></div>
+              <div class="metric"><span>积水 / 火焰</span><strong id="sensor-hazards">—</strong><small>digital</small></div>
+            </div>
+          </article>
+
+          <article class="panel actuator-panel">
+            <div class="section-heading compact"><div><p class="section-kicker">执行层</p><h2>设备动作</h2></div><span id="safety-state" class="mini-tag">—</span></div>
+            <div class="actuator-list">
+              <div><span><i>◉</i>蜂鸣器</span><strong id="actuator-buzzer">—</strong></div>
+              <div><span><i>⌁</i>风扇</span><strong id="actuator-fan">—</strong></div>
+              <div><span><i>⌁</i>舵机</span><strong id="actuator-servo">—</strong></div>
+              <div><span><i>⏻</i>继电器</span><strong id="actuator-relay">—</strong></div>
+              <div><span><i class="rgb-dot"></i>RGB 灯环</span><strong id="actuator-rgb">—</strong></div>
+            </div>
+          </article>
+
+          <article class="panel ack-panel">
+            <div class="section-heading compact"><div><p class="section-kicker">协议回执</p><h2>命令与 ack</h2></div><span id="pending-count" class="mini-tag">0 待处理</span></div>
+            <div id="ack-summary" class="ack-summary" data-state="waiting">尚未发送命令</div>
+            <ol id="event-log" class="event-log"><li><time>—</time><span>等待本地 WebSocket</span></li></ol>
+          </article>
+        </section>
+      </main>
+
+      <footer>阶段 2 本地闭环 · 数据源固定为 Mock · 不代表 USB 真板或云端在线</footer>
+    </div>
+    <script src="./context-core.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
