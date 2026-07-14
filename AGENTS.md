@@ -24,18 +24,21 @@
 
 ## 当前阶段
 
-阶段0、阶段1、阶段2和阶段3软件基线已经完成：仓库、最小协议、mock闭环、真实GPIO采样代码、情境引擎、协议测试和纯编译均已通过。阶段3尚未烧录或完成实物标定，当前不得自行扩大到阶段4。
+阶段0至阶段4软件基线已经完成：仓库、最小协议、mock闭环、真实GPIO采样代码、情境引擎、安全引擎、动作规划器、未武装驱动、协议测试和纯编译均已通过。阶段4只完成软件判断与逻辑动作规划，尚未烧录本项目固件或验收任何物理执行器。
 
-- 固件版本为 `0.2.0`，按200ms采集快速输入、按2000ms读取DHT，并输出数值、有效性、数据年龄、情境候选和固定证据代码。
+- 固件版本为 `0.3.0`，按200ms采集快速输入、按2000ms读取DHT，并输出数值、有效性、数据年龄、情境候选、固定证据代码、安全状态和逻辑动作目标。
 - DHT最近有效值最多保留6000ms；MQ2在启动后30000ms内只标记预热；水滴和火焰使用连续3帧确认及连续3帧恢复。
-- 阶段3只采样和判断，不写风扇、舵机、继电器、蜂鸣器或RGB；`actuatorsReady=false`、`safetyReady=false`必须保持真实。
+- MQ2暂定报警/恢复阈值为 `2600/2400`，使用连续3个新采样确认；快速安全输入超过1500ms未更新时进入传感器故障判断。以上仍是待实物复核的基线。
+- 阶段4可计算 `actuatorTargets`，但 `ACTUATORS_ARMED` 及五个执行器独立武装开关全部为 `false`；驱动层不得调用GPIO、PWM、舵机attach或灯环输出。`actuators`实际值保持 `null`，`actuatorsReady=false`。
+- `safetyReady=true`只表示纯软件安全判断已通过测试，不代表执行器可用；`actuatorsArmed=false`、`hardwareVerified=false`、`calibrationRequired=true`必须保持真实。
+- 安全优先级固定为火焰 > MQ2 > 水滴 > 传感器故障；火焰必须覆盖MQ2排风并停止风扇，水滴不得启动风扇或舵机，静音只关闭声音而不删除风险或其他保护目标。
 - 阈值和水滴/火焰高电平触发都只是待实物验证的起始基线；遥测必须保留 `hardwareVerified=false`、`calibrationRequired=true`。
 - `tools/n16r8_gateway.py --mock-board` 只产生显式 `mock=true` 的模拟数据，不得把它描述为真板采样。
-- Dashboard只有在收到新鲜mock `telemetry` 时才能显示“模拟板在线”；WebSocket已连接、页面已渲染或收到旧数据都不等于真板在线。
+- Dashboard只有在收到新鲜mock `telemetry` 时才能显示“模拟板在线”；真板未武装时显示“计划 / 未应用”，只有mock可以显示“模拟执行”。WebSocket已连接、页面已渲染或收到旧数据都不等于真板在线。
 - 当前只运行契约测试和 `pio run` 编译，并可运行阶段2的本地mock网关与静态Dashboard；不执行 `upload`、`write_flash`、`erase_flash`、串口烧录或固件恢复。
 - 未经用户再次明确授权，不接触开发板Flash、NVS、Wi-Fi或小智激活数据。
 
-2026-07-14阶段3纯编译证据：PlatformIO显示 `[SUCCESS]`，RAM使用 `19140 / 327680 bytes`，Flash使用 `291693 / 6553600 bytes`；本次没有执行上传或串口操作。
+2026-07-14阶段4软件基线证据：Python 24项、Node 15项测试通过；PlatformIO显示 `[SUCCESS]`，RAM使用 `19316 / 327680 bytes`，Flash使用 `297713 / 6553600 bytes`；本次没有执行上传、串口或Flash操作。
 
 阶段2固定本地端口：WebSocket网关 `127.0.0.1:18766`，静态Dashboard `127.0.0.1:18767`。标准启动命令：
 
@@ -127,13 +130,13 @@ idf.py flash
 启动身份：
 
 ```json
-{"type":"hello","project":"smartlife-junior-context","profileId":"smartlife-junior-context-detective-v1","board":"n16r8_esp32s3","firmware":"0.2.0","baud":115200,"rfid":false,"features":{"contextReasoning":true,"webVoiceIntent":true,"localVoiceNlu":false,"mcp":false}}
+{"type":"hello","project":"smartlife-junior-context","profileId":"smartlife-junior-context-detective-v1","board":"n16r8_esp32s3","firmware":"0.3.0","baud":115200,"rfid":false,"features":{"contextReasoning":true,"safetyReasoning":true,"actuatorPlanning":true,"physicalActuators":false,"webVoiceIntent":true,"localVoiceNlu":false,"mcp":false}}
 ```
 
-阶段3遥测必须区分采样器就绪与实物尚未验收。以下数值只展示字段结构，不是标定结果：
+阶段4遥测必须区分逻辑动作目标、物理实际值和实物尚未验收。以下数值只展示字段结构，不是标定结果：
 
 ```json
-{"type":"telemetry","project":"smartlife-junior-context","mode":"detect","sensors":{"light":0,"sound":0,"temperature":null,"humidity":null,"pir":false,"keypad":0,"mq2":0,"water":false,"flame":false},"sensorValid":{},"sensorAgeMs":{},"context":{"candidate":"detect","coverage":0,"match":0,"status":"unknown","supporting":[],"opposing":[],"missing":[]},"actuators":{},"alerts":[],"health":{"stage":"stage3-sensors-context","sensorsReady":true,"actuatorsReady":false,"contextReady":true,"safetyReady":false,"hardwareVerified":false,"calibrationRequired":true}}
+{"type":"telemetry","project":"smartlife-junior-context","mode":"detect","sensors":{"light":0,"sound":0,"temperature":null,"humidity":null,"pir":false,"keypad":0,"mq2":0,"water":false,"flame":false},"sensorValid":{},"sensorAgeMs":{},"context":{"candidate":"detect","coverage":0,"match":0,"status":"unknown","supporting":[],"opposing":[],"missing":[]},"actuatorTargets":{"fanPercent":0,"servoPosition":"hold","relayOn":false,"buzzerMode":"off","rgbState":"off"},"actuators":{"fanPercent":null,"servoAngle":null,"relayOn":null,"buzzerOn":null,"rgbState":null},"alerts":[],"safety":{"state":"normal","primary":"none","causes":[],"overrideActive":false,"buzzerRequested":false,"buzzerMuted":false},"health":{"stage":"stage4-actuator-safety-software","sensorsReady":true,"actuatorsArmed":false,"actuatorsReady":false,"actuatorApplyState":"unarmed","contextReady":true,"safetyReady":true,"hardwareVerified":false,"calibrationRequired":true}}
 ```
 
 当前固件只接受六个模式名：
@@ -181,11 +184,13 @@ node --check dashboard/context-core.js
 node --check dashboard/app.js
 ```
 
-阶段3验证命令：
+阶段3和阶段4软件验证命令：
 
 ```bash
 python3 -m unittest discover -s tools -p 'test_*.py' -v
 node --test dashboard/tests/*.test.js
+node --check dashboard/context-core.js
+node --check dashboard/app.js
 PLATFORMIO_SETTING_ENABLE_TELEMETRY=no \
   /Users/yukii/.platformio/penv/bin/pio run -d firmware -j1
 ```
@@ -202,4 +207,4 @@ PLATFORMIO_SETTING_ENABLE_TELEMETRY=no \
 
 ## 下一阶段顺序
 
-阶段3软件基线完成后，下一步仍是阶段3真板验收：获得明确烧录授权后，逐项采集光敏、声音、DHT、PIR、8键AD、MQ2、水滴和火焰原始值，确认MQ2分压以及水滴/火焰触发电平，再修订暂定阈值。完成实物证据前，不进入阶段4执行器和安全引擎。
+阶段4软件基线完成后，下一步是阶段4真板验收。必须再次获得明确的烧录、串口采样和低压执行器测试授权，先复核阶段3传感器原始值、MQ2分压以及水滴/火焰触发电平，再按蜂鸣器、RGB、风扇、舵机、继电器顺序逐个武装、逐个测试。每次只启用一个执行器开关；未经对应实物验收，不得把 `ACTUATORS_ARMED` 或该执行器独立开关改为 `true`，也不得声称物理执行成功。
