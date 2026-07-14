@@ -139,6 +139,8 @@ class FirmwareContractTests(unittest.TestCase):
         actual_modes = set(re.findall(r'"([a-z]+)"', block))
 
         self.assertEqual(actual_modes, expected_modes)
+        self.assertIn('command["mode"].as<const char*>()', source)
+        self.assertNotIn('command["mode"] | nullptr', source)
 
     def test_stage_three_modules_are_split_by_responsibility(self):
         for path in [SENSORS_HEADER, SENSORS_CPP, PROJECT_TYPES, CONTEXT_HEADER, CONTEXT_CPP, INPUT_FILTER]:

@@ -246,7 +246,7 @@ void handleCommandLine(const String& line) {
     return;
   }
 
-  const char* requestedMode = command["mode"] | nullptr;
+  const char* requestedMode = command["mode"].as<const char*>();
   if (requestedMode != nullptr) {
     if (!isAllowedMode(requestedMode)) {
       emitAck(commandId, false, "unsupported_mode");
