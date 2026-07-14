@@ -1,0 +1,14 @@
+.DS_Store
+.pio/
+firmware/.pio/
+firmware/.vscode/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+output/
+*.log
+*.bin
+*.sha256
+n16r8-private-backups/
