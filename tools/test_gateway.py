@@ -33,6 +33,7 @@ class GatewayContractTests(unittest.TestCase):
         self.assertEqual(hello["profileId"], "smartlife-junior-context-detective-v1")
         self.assertEqual(hello["board"], "n16r8_esp32s3")
         self.assertTrue(hello["mock"])
+        self.assertEqual(hello["source"], "mock-board")
         self.assertFalse(hello["rfid"])
         self.assertEqual(
             hello["pins"],
@@ -59,6 +60,11 @@ class GatewayContractTests(unittest.TestCase):
         self.assertEqual(hello["capabilities"]["mockScenarios"], ["normal", "mq2", "water", "flame"])
         self.assertFalse(hello["features"]["localVoiceNlu"])
         self.assertFalse(hello["features"]["mcp"])
+        self.assertTrue(hello["features"]["safetyReasoning"])
+        self.assertTrue(hello["features"]["actuatorPlanning"])
+        self.assertFalse(hello["features"]["physicalActuators"])
+        self.assertEqual(hello["health"]["actuatorApplyState"], "simulated")
+        self.assertFalse(hello["health"]["hardwareVerified"])
 
     def test_each_mode_produces_a_complete_context_explanation(self):
         state = gateway.MockBoardState()
@@ -84,17 +90,36 @@ class GatewayContractTests(unittest.TestCase):
                     set(telemetry["sensors"]),
                     {"light", "sound", "temperature", "humidity", "pir", "keypad", "mq2", "water", "flame"},
                 )
-                self.assertEqual(set(telemetry["actuators"]), {"buzzer", "fan", "servo", "relay", "rgb"})
+                self.assertEqual(
+                    set(telemetry["actuatorTargets"]),
+                    {"fanPercent", "servoPosition", "relayOn", "buzzerMode", "rgbState"},
+                )
+                self.assertEqual(
+                    set(telemetry["actuators"]),
+                    {"fanPercent", "servoAngle", "relayOn", "buzzerOn", "rgbState"},
+                )
+                self.assertTrue(telemetry["mock"])
+                self.assertEqual(telemetry["source"], "mock-board")
+                self.assertEqual(telemetry["health"]["actuatorApplyState"], "simulated")
 
     def test_safety_scenarios_override_only_with_named_causes(self):
         state = gateway.MockBoardState()
 
         expectations = {
-            "mq2": {"fan": 100, "servo": 110, "relay": False, "buzzer": True},
-            "water": {"fan": 0, "servo": 0, "relay": False, "buzzer": True},
-            "flame": {"fan": 0, "servo": 0, "relay": False, "buzzer": True},
+            "mq2": {
+                "target": {"fanPercent": 100, "servoPosition": "ventilation-open", "relayOn": False, "buzzerMode": "alarm", "rgbState": "red"},
+                "actual": {"fanPercent": 100, "servoAngle": 100, "relayOn": False, "buzzerOn": True, "rgbState": "red"},
+            },
+            "water": {
+                "target": {"fanPercent": 0, "servoPosition": "hold", "relayOn": False, "buzzerMode": "intermittent", "rgbState": "blue-red"},
+                "actual": {"fanPercent": 0, "servoAngle": 0, "relayOn": False, "buzzerOn": True, "rgbState": "blue-red"},
+            },
+            "flame": {
+                "target": {"fanPercent": 0, "servoPosition": "safety-closed", "relayOn": False, "buzzerMode": "alarm", "rgbState": "red"},
+                "actual": {"fanPercent": 0, "servoAngle": 0, "relayOn": False, "buzzerOn": True, "rgbState": "red"},
+            },
         }
-        for scenario, expected_actuators in expectations.items():
+        for scenario, expected in expectations.items():
             with self.subTest(scenario=scenario):
                 ack = state.apply_command(
                     {"type": "command", "id": f"scenario-{scenario}", "mockScenario": scenario}
@@ -104,18 +129,38 @@ class GatewayContractTests(unittest.TestCase):
                 self.assertTrue(ack["ok"])
                 self.assertEqual(telemetry["alerts"], [scenario])
                 self.assertIn(scenario, telemetry["safety"]["causes"])
-                self.assertTrue(telemetry["safety"]["overridden"])
-                for actuator, expected in expected_actuators.items():
-                    self.assertEqual(telemetry["actuators"][actuator], expected)
+                self.assertTrue(telemetry["safety"]["overrideActive"])
+                self.assertEqual(telemetry["safety"]["primary"], scenario)
+                self.assertEqual(telemetry["actuatorTargets"], expected["target"])
+                self.assertEqual(telemetry["actuators"], expected["actual"])
 
         state.apply_command({"type": "command", "id": "normal", "mockScenario": "normal"})
         self.assertEqual(state.telemetry()["alerts"], [])
+
+    def test_explicit_mock_buzzer_mute_preserves_safety_actions(self):
+        state = gateway.MockBoardState()
+        mute = state.apply_command(
+            {"type": "command", "id": "mute", "set": {"buzzerEnabled": False}}
+        )
+        state.apply_command({"type": "command", "id": "risk", "mockScenario": "mq2"})
+        telemetry = state.telemetry()
+
+        self.assertTrue(mute["ok"])
+        self.assertEqual(mute["id"], "mute")
+        self.assertEqual(telemetry["alerts"], ["mq2"])
+        self.assertEqual(telemetry["actuatorTargets"]["fanPercent"], 100)
+        self.assertFalse(telemetry["actuatorTargets"]["relayOn"])
+        self.assertEqual(telemetry["actuatorTargets"]["rgbState"], "red")
+        self.assertEqual(telemetry["actuatorTargets"]["buzzerMode"], "off")
+        self.assertFalse(telemetry["actuators"]["buzzerOn"])
+        self.assertTrue(telemetry["safety"]["buzzerRequested"])
+        self.assertTrue(telemetry["safety"]["buzzerMuted"])
 
     def test_command_ack_requires_id_and_rejects_unknown_values(self):
         state = gateway.MockBoardState()
 
         cases = [
-            ({"type": "command", "mode": "study"}, "", "missing_id"),
+            ({"type": "command", "mode": "study"}, None, "missing_id"),
             ({"type": "ping", "id": "bad-type"}, "bad-type", "unsupported_type"),
             ({"type": "command", "id": "bad-mode", "mode": "sleep"}, "bad-mode", "unsupported_mode"),
             (
