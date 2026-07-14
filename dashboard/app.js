@@ -51,7 +51,7 @@
     }
     socket.addEventListener("open", () => {
       setStatus("ws-status", "已连接", "ok");
-      logEvent("WebSocket 已连接，等待 mock telemetry");
+      logEvent("WebSocket 已连接，等待项目 telemetry");
     });
     socket.addEventListener("message", (event) => {
       let frame;
@@ -60,7 +60,7 @@
       if (frame.project !== ContextCore.PROJECT_ID) return;
       if (frame.type === "telemetry") receiveTelemetry(frame);
       else if (frame.type === "ack") receiveAck(frame);
-      else if (frame.type === "hello" && frame.mock === true) logEvent("收到 mock board hello");
+      else if (frame.type === "hello") logEvent(frame.mock === true ? "收到 mock board hello" : "收到开发板 hello");
     });
     socket.addEventListener("close", () => {
       setStatus("ws-status", "已断开", "danger");
@@ -73,23 +73,29 @@
 
   function receiveTelemetry(frame) {
     const telemetry = ContextCore.normalizeTelemetry(frame);
-    if (!telemetry || telemetry.mock !== true) return;
+    if (!telemetry) return;
     currentTelemetry = telemetry;
     lastTelemetryAt = Date.now();
-    setStatus("board-status", "模拟板在线", "ok");
+    const isMock = telemetry.mock === true;
+    setText("source-label", isMock ? "Mock 模拟数据" : "开发板遥测");
+    setStatus("board-status", isMock ? "模拟板在线" : "开发板数据在线", "ok");
+    document.querySelectorAll("[data-scenario]").forEach((button) => {
+      button.disabled = !isMock;
+      button.title = isMock ? "" : "安全场景按钮只用于 mock 调试";
+    });
     renderTelemetry(telemetry);
   }
 
   function renderTelemetry(telemetry) {
     const context = telemetry.context;
     setText("context-title", ContextCore.modeLabel(context.candidate || telemetry.mode));
-    setText("context-description", context.status === "matched" ? "当前多源证据相互支持，形成可解释情境判断。" : "已有部分证据，但仍需补充信息或人工确认。");
+    setText("context-description", contextDescription(context.status));
     setText("coverage-value", percent(context.coverage));
     setText("match-value", percent(context.match));
-    setText("context-status", context.status === "matched" ? "证据匹配" : "仍有不确定");
-    renderList("supporting-list", context.supporting, "暂无支持证据");
-    renderList("opposing-list", context.opposing, "无明显反对证据");
-    renderList("missing-list", context.missing, "关键证据完整");
+    setText("context-status", ContextCore.statusLabel(context.status));
+    renderList("supporting-list", mapEvidence(context.supporting), "暂无支持证据");
+    renderList("opposing-list", mapEvidence(context.opposing), "无明显反对证据");
+    renderList("missing-list", mapEvidence(context.missing), "关键证据完整");
 
     const sensors = telemetry.sensors;
     setText("sensor-light", valueOrDash(sensors.light));
@@ -112,7 +118,8 @@
     const banner = $("alert-banner");
     banner.hidden = alerts.length === 0;
     banner.textContent = alerts.length ? `安全优先：${alerts.join("、")}` : "";
-    setText("safety-state", telemetry.safety && telemetry.safety.overridden ? "安全覆盖中" : "情境策略");
+    const actuatorsReady = telemetry.health && telemetry.health.actuatorsReady !== false;
+    setText("safety-state", telemetry.safety && telemetry.safety.overridden ? "安全覆盖中" : actuatorsReady ? "情境策略" : "阶段 3 未驱动");
     document.querySelectorAll("[data-mode]").forEach((button) => button.classList.toggle("active", button.dataset.mode === telemetry.mode));
     document.querySelectorAll("[data-scenario]").forEach((button) => button.classList.toggle("active", button.dataset.scenario === telemetry.mockScenario));
     updateAge();
@@ -127,6 +134,17 @@
       item.textContent = value;
       list.appendChild(item);
     });
+  }
+
+  function mapEvidence(items) {
+    return Array.isArray(items) ? items.map(ContextCore.evidenceLabel) : [];
+  }
+
+  function contextDescription(status) {
+    if (status === "matched" || status === "possible") return "当前多源证据相互支持，形成可解释的候选情境。";
+    if (status === "ambiguous") return "两个或多个情境得分接近，需要补充证据或人工确认。";
+    if (status === "evidence_missing") return "必需传感器失效或证据覆盖不足，系统不会强行下结论。";
+    return "当前证据尚不足以形成稳定判断。";
   }
 
   function valueOrDash(value) {
@@ -198,6 +216,7 @@
   function clearTelemetry() {
     currentTelemetry = null;
     lastTelemetryAt = null;
+    setText("source-label", "等待数据来源");
     setStatus("board-status", "等待实时数据", "waiting");
     setText("context-title", "等待实时数据");
     setText("context-description", "telemetry 已过期，页面已清除旧情境判断。");

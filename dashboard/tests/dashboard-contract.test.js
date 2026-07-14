@@ -24,7 +24,7 @@ test("dashboard exposes all six modes and all four mock scenarios", () => {
 
 test("dashboard distinguishes mock, websocket, usb and mqtt truth", () => {
   const html = read("index.html");
-  for (const copy of ["Mock 模拟数据", "WebSocket", "USB", "MQTT", "等待实时数据"]) {
+  for (const copy of ["等待数据来源", "WebSocket", "USB", "MQTT", "等待实时数据"]) {
     assert.match(html, new RegExp(copy));
   }
   assert.doesNotMatch(html, /真板在线/);
@@ -38,4 +38,7 @@ test("client implements query endpoint, ack timeout and stale clearing", () => {
   assert.match(source, /pendingCommands/);
   assert.match(source, /clearTelemetry/);
   assert.match(source, /等待实时数据/);
+  assert.match(source, /telemetry\.mock\s*===\s*true/);
+  assert.doesNotMatch(source, /telemetry\.mock\s*!==\s*true\)\s*return/);
+  assert.match(source, /ContextCore\.evidenceLabel/);
 });

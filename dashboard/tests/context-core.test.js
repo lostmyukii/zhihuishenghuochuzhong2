@@ -41,3 +41,9 @@ test("unknown alert codes remain visible instead of being hidden", () => {
   assert.equal(core.alertLabel("mq2"), "烟雾或燃气风险");
   assert.equal(core.alertLabel("future-alert"), "future-alert");
 });
+
+test("fixed firmware evidence codes become Chinese explanations", () => {
+  assert.equal(core.evidenceLabel("pir_active"), "检测到近期人体活动");
+  assert.equal(core.evidenceLabel("dht_missing"), "温湿度证据缺失或已过期");
+  assert.equal(core.evidenceLabel("future-evidence"), "future-evidence");
+});

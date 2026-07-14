@@ -1,12 +1,13 @@
 #pragma once
 
-#include <Arduino.h>
+#include <stddef.h>
+#include <stdint.h>
 
 constexpr const char* PROJECT_ID = "smartlife-junior-context";
 constexpr const char* PROFILE_ID = "smartlife-junior-context-detective-v1";
 constexpr const char* DEVICE_NAME = "N16R8 无摄像头家庭情境侦探屋";
 constexpr const char* BOARD_ID = "n16r8_esp32s3";
-constexpr const char* FIRMWARE_VERSION = "0.1.0";
+constexpr const char* FIRMWARE_VERSION = "0.2.0";
 
 constexpr uint32_t SERIAL_BAUD = 115200;
 
@@ -29,4 +30,20 @@ constexpr uint32_t DHT_INTERVAL_MS = 2000;
 constexpr uint32_t DHT_STALE_MS = 6000;
 constexpr uint32_t TELEMETRY_INTERVAL_MS = 500;
 constexpr uint32_t MQ2_WARMUP_MS = 30000;
+constexpr uint8_t DIGITAL_CONFIRM_SAMPLES = 3;
+constexpr uint8_t DIGITAL_RECOVERY_SAMPLES = 3;
+
+// Stage-3 starting points only. Real-board calibration must replace these values.
+constexpr uint16_t PROVISIONAL_LIGHT_BRIGHT_RAW = 1800;
+constexpr uint16_t PROVISIONAL_LIGHT_DIM_RAW = 1400;
+constexpr uint16_t PROVISIONAL_SOUND_STUDY_MAX_RAW = 2300;
+constexpr uint16_t PROVISIONAL_SOUND_QUIET_MAX_RAW = 1400;
+constexpr float PROVISIONAL_TEMPERATURE_HIGH_C = 28.0F;
+constexpr float PROVISIONAL_HUMIDITY_HIGH_PERCENT = 70.0F;
+constexpr uint8_t CONTEXT_MIN_COVERAGE = 70;
+constexpr uint8_t CONTEXT_MATCH_THRESHOLD = 65;
+constexpr uint8_t CONTEXT_AMBIGUITY_GAP = 8;
+
+constexpr bool WATER_TRIGGER_HIGH = true;
+constexpr bool FLAME_TRIGGER_HIGH = true;
 constexpr size_t SERIAL_LINE_MAX_BYTES = 512;

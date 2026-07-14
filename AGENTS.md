@@ -24,17 +24,18 @@
 
 ## 当前阶段
 
-阶段0、阶段1和阶段2已经完成：仓库基线、最小PIO协议骨架、`--mock-board` 网关、本地Dashboard、协议测试和纯编译均已通过。当前不得自行扩大到阶段3。
+阶段0、阶段1、阶段2和阶段3软件基线已经完成：仓库、最小协议、mock闭环、真实GPIO采样代码、情境引擎、协议测试和纯编译均已通过。阶段3尚未烧录或完成实物标定，当前不得自行扩大到阶段4。
 
-- 固件允许输出 `hello`、未就绪的 `telemetry`，并对最小白名单命令返回 `ack`。
+- 固件版本为 `0.2.0`，按200ms采集快速输入、按2000ms读取DHT，并输出数值、有效性、数据年龄、情境候选和固定证据代码。
+- DHT最近有效值最多保留6000ms；MQ2在启动后30000ms内只标记预热；水滴和火焰使用连续3帧确认及连续3帧恢复。
+- 阶段3只采样和判断，不写风扇、舵机、继电器、蜂鸣器或RGB；`actuatorsReady=false`、`safetyReady=false`必须保持真实。
+- 阈值和水滴/火焰高电平触发都只是待实物验证的起始基线；遥测必须保留 `hardwareVerified=false`、`calibrationRequired=true`。
 - `tools/n16r8_gateway.py --mock-board` 只产生显式 `mock=true` 的模拟数据，不得把它描述为真板采样。
 - Dashboard只有在收到新鲜mock `telemetry` 时才能显示“模拟板在线”；WebSocket已连接、页面已渲染或收到旧数据都不等于真板在线。
-- 当前不得在固件中读取传感器或驱动执行器；不得用mock默认数值冒充真实数据。
-- 遥测必须明确显示 `sensorsReady=false`、`actuatorsReady=false`、`contextReady=false`、`safetyReady=false`。
 - 当前只运行契约测试和 `pio run` 编译，并可运行阶段2的本地mock网关与静态Dashboard；不执行 `upload`、`write_flash`、`erase_flash`、串口烧录或固件恢复。
 - 未经用户再次明确授权，不接触开发板Flash、NVS、Wi-Fi或小智激活数据。
 
-2026-07-14最终复编译证据：PlatformIO显示 `[SUCCESS]`，RAM使用 `18572 / 327680 bytes`，Flash使用 `275109 / 6553600 bytes`；本次没有执行上传或串口操作。
+2026-07-14阶段3纯编译证据：PlatformIO显示 `[SUCCESS]`，RAM使用 `19140 / 327680 bytes`，Flash使用 `291693 / 6553600 bytes`；本次没有执行上传或串口操作。
 
 阶段2固定本地端口：WebSocket网关 `127.0.0.1:18766`，静态Dashboard `127.0.0.1:18767`。标准启动命令：
 
@@ -126,16 +127,16 @@ idf.py flash
 启动身份：
 
 ```json
-{"type":"hello","project":"smartlife-junior-context","profileId":"smartlife-junior-context-detective-v1","board":"n16r8_esp32s3","firmware":"0.1.0","baud":115200,"rfid":false,"features":{"contextReasoning":true,"webVoiceIntent":true,"localVoiceNlu":false,"mcp":false}}
+{"type":"hello","project":"smartlife-junior-context","profileId":"smartlife-junior-context-detective-v1","board":"n16r8_esp32s3","firmware":"0.2.0","baud":115200,"rfid":false,"features":{"contextReasoning":true,"webVoiceIntent":true,"localVoiceNlu":false,"mcp":false}}
 ```
 
-最小遥测必须诚实标记尚未接入硬件采样：
+阶段3遥测必须区分采样器就绪与实物尚未验收。以下数值只展示字段结构，不是标定结果：
 
 ```json
-{"type":"telemetry","project":"smartlife-junior-context","mode":"detect","sensors":{},"actuators":{},"alerts":[],"health":{"stage":"protocol-skeleton","sensorsReady":false,"actuatorsReady":false,"contextReady":false,"safetyReady":false}}
+{"type":"telemetry","project":"smartlife-junior-context","mode":"detect","sensors":{"light":0,"sound":0,"temperature":null,"humidity":null,"pir":false,"keypad":0,"mq2":0,"water":false,"flame":false},"sensorValid":{},"sensorAgeMs":{},"context":{"candidate":"detect","coverage":0,"match":0,"status":"unknown","supporting":[],"opposing":[],"missing":[]},"actuators":{},"alerts":[],"health":{"stage":"stage3-sensors-context","sensorsReady":true,"actuatorsReady":false,"contextReady":true,"safetyReady":false,"hardwareVerified":false,"calibrationRequired":true}}
 ```
 
-阶段1只接受六个模式名：
+当前固件只接受六个模式名：
 
 ```text
 detect, study, rest, ventilation, energy, custom
@@ -180,6 +181,15 @@ node --check dashboard/context-core.js
 node --check dashboard/app.js
 ```
 
+阶段3验证命令：
+
+```bash
+python3 -m unittest discover -s tools -p 'test_*.py' -v
+node --test dashboard/tests/*.test.js
+PLATFORMIO_SETTING_ENABLE_TELEMETRY=no \
+  /Users/yukii/.platformio/penv/bin/pio run -d firmware -j1
+```
+
 只有命令实际通过才可以记录成功。编译成功不等于真板运行、串口正常或硬件已验收。
 
 ## Git规则
@@ -192,4 +202,4 @@ node --check dashboard/app.js
 
 ## 下一阶段顺序
 
-阶段2完成后，下一步是阶段3：实现真板传感器采样和情境引擎。未经新任务授权，不提前实现传感器采样、执行器驱动、公网部署、真实串口网关或真板烧录。
+阶段3软件基线完成后，下一步仍是阶段3真板验收：获得明确烧录授权后，逐项采集光敏、声音、DHT、PIR、8键AD、MQ2、水滴和火焰原始值，确认MQ2分压以及水滴/火焰触发电平，再修订暂定阈值。完成实物证据前，不进入阶段4执行器和安全引擎。

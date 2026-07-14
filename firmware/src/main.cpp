@@ -1,13 +1,18 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
+#include "context_engine.h"
 #include "project_config.h"
+#include "project_types.h"
+#include "sensors.h"
 
 namespace {
 
 String selectedMode = "detect";
 String serialLine;
 uint32_t lastTelemetryAt = 0;
+SensorSampler sensors;
+ContextEngine contextEngine;
 
 void writeJsonLine(JsonDocument& document) {
   serializeJson(document, Serial);
@@ -19,6 +24,25 @@ bool isAllowedMode(const char* mode) {
          (strcmp(mode, "detect") == 0 || strcmp(mode, "study") == 0 ||
           strcmp(mode, "rest") == 0 || strcmp(mode, "ventilation") == 0 ||
           strcmp(mode, "energy") == 0 || strcmp(mode, "custom") == 0);
+}
+
+ContextMode selectedContextMode() {
+  if (selectedMode == "study") return ContextMode::Study;
+  if (selectedMode == "rest") return ContextMode::Rest;
+  if (selectedMode == "ventilation") return ContextMode::Ventilation;
+  if (selectedMode == "energy") return ContextMode::Energy;
+  if (selectedMode == "custom") return ContextMode::Custom;
+  return ContextMode::Detect;
+}
+
+void addStageHealth(JsonObject health) {
+  health["stage"] = "stage3-sensors-context";
+  health["sensorsReady"] = true;
+  health["actuatorsReady"] = false;
+  health["contextReady"] = true;
+  health["safetyReady"] = false;
+  health["hardwareVerified"] = false;
+  health["calibrationRequired"] = true;
 }
 
 void emitHello() {
@@ -66,39 +90,122 @@ void emitHello() {
   modes.add("custom");
 
   JsonObject health = root["health"].to<JsonObject>();
-  health["stage"] = "protocol-skeleton";
-  health["sensorsReady"] = false;
-  health["actuatorsReady"] = false;
-  health["contextReady"] = false;
-  health["safetyReady"] = false;
+  addStageHealth(health);
+  health["sensorSampling"] = "real-gpio-unverified";
+  health["thresholdProfile"] = "provisional-unverified";
+  health["mq2Divider"] = "required-if-powered-at-5v";
 
   writeJsonLine(document);
 }
 
+void setNullableSample(JsonObject target, const char* key,
+                       const SensorSample& sample) {
+  if (sample.valid) {
+    target[key] = sample.value;
+  } else {
+    target[key] = nullptr;
+  }
+}
+
+void setAge(JsonObject target, const char* key, const SensorSample& sample,
+            uint32_t nowMs) {
+  if (sample.updatedAtMs == 0) {
+    target[key] = nullptr;
+  } else {
+    target[key] = nowMs - sample.updatedAtMs;
+  }
+}
+
+void addEvidence(JsonArray array, const EvidenceList& evidence) {
+  for (uint8_t index = 0; index < evidence.count; ++index) {
+    array.add(evidence.items[index]);
+  }
+}
+
 void emitTelemetry() {
+  const uint32_t nowMs = millis();
+  const SensorSnapshot& snapshot = sensors.snapshot();
+  const ContextResult result =
+      contextEngine.evaluate(snapshot, selectedContextMode());
+
   JsonDocument document;
   JsonObject root = document.to<JsonObject>();
   root["type"] = "telemetry";
   root["project"] = PROJECT_ID;
   root["profileId"] = PROFILE_ID;
   root["firmware"] = FIRMWARE_VERSION;
-  root["uptimeMs"] = millis();
+  root["uptimeMs"] = nowMs;
   root["mode"] = selectedMode;
 
-  root["sensors"].to<JsonObject>();
+  JsonObject sensorValues = root["sensors"].to<JsonObject>();
+  sensorValues["light"] = static_cast<uint16_t>(snapshot.light.value);
+  sensorValues["sound"] = static_cast<uint16_t>(snapshot.sound.value);
+  setNullableSample(sensorValues, "temperature", snapshot.temperature);
+  setNullableSample(sensorValues, "humidity", snapshot.humidity);
+  sensorValues["pir"] = snapshot.pir.value >= 0.5F;
+  sensorValues["keypad"] = static_cast<uint16_t>(snapshot.keypad.value);
+  sensorValues["mq2"] = static_cast<uint16_t>(snapshot.mq2.value);
+  sensorValues["water"] = snapshot.water.value >= 0.5F;
+  sensorValues["flame"] = snapshot.flame.value >= 0.5F;
+
+  JsonObject validity = root["sensorValid"].to<JsonObject>();
+  validity["light"] = snapshot.light.valid;
+  validity["sound"] = snapshot.sound.valid;
+  validity["temperature"] = snapshot.temperature.valid;
+  validity["humidity"] = snapshot.humidity.valid;
+  validity["pir"] = snapshot.pir.valid;
+  validity["keypad"] = snapshot.keypad.valid;
+  validity["mq2"] = snapshot.mq2.valid;
+  validity["water"] = snapshot.water.valid;
+  validity["flame"] = snapshot.flame.valid;
+
+  JsonObject ages = root["sensorAgeMs"].to<JsonObject>();
+  setAge(ages, "light", snapshot.light, nowMs);
+  setAge(ages, "sound", snapshot.sound, nowMs);
+  setAge(ages, "temperature", snapshot.temperature, nowMs);
+  setAge(ages, "humidity", snapshot.humidity, nowMs);
+  setAge(ages, "pir", snapshot.pir, nowMs);
+  setAge(ages, "keypad", snapshot.keypad, nowMs);
+  setAge(ages, "mq2", snapshot.mq2, nowMs);
+  setAge(ages, "water", snapshot.water, nowMs);
+  setAge(ages, "flame", snapshot.flame, nowMs);
+
+  JsonObject context = root["context"].to<JsonObject>();
+  context["candidate"] = contextModeName(result.candidate);
+  context["coverage"] = result.coverage;
+  context["match"] = result.match;
+  context["status"] = contextStatusName(result.status);
+  context["confirmedByUser"] = result.confirmedByUser;
+  JsonArray supporting = context["supporting"].to<JsonArray>();
+  JsonArray opposing = context["opposing"].to<JsonArray>();
+  JsonArray missing = context["missing"].to<JsonArray>();
+  addEvidence(supporting, result.supporting);
+  addEvidence(opposing, result.opposing);
+  addEvidence(missing, result.missing);
+
   root["actuators"].to<JsonObject>();
   root["alerts"].to<JsonArray>();
 
-  JsonObject context = root["context"].to<JsonObject>();
-  context["status"] = "unknown";
-  context["reason"] = "protocol-skeleton-no-sensor-sampling";
-
   JsonObject health = root["health"].to<JsonObject>();
-  health["stage"] = "protocol-skeleton";
-  health["sensorsReady"] = false;
-  health["actuatorsReady"] = false;
-  health["contextReady"] = false;
-  health["safetyReady"] = false;
+  addStageHealth(health);
+  health["sensorSampling"] = "real-gpio-unverified";
+  health["thresholdProfile"] = "provisional-unverified";
+  health["dht"] = snapshot.temperature.valid
+                      ? "ok"
+                      : (sensors.dhtEverValid() ? "stale" : "missing");
+  if (sensors.dhtEverValid()) {
+    health["dhtAgeMs"] = nowMs - sensors.lastDhtSuccessAt();
+  } else {
+    health["dhtAgeMs"] = nullptr;
+  }
+  health["mq2State"] = snapshot.mq2WarmedUp ? "ready-unverified" : "warming";
+  health["mq2WarmupRemainingMs"] = snapshot.mq2WarmupRemainingMs;
+  health["mq2Divider"] = "required-if-powered-at-5v";
+  health["waterInputLevel"] = snapshot.waterInputHigh ? "high" : "low";
+  health["waterTriggerLevel"] = "high-unverified";
+  health["flameInputLevel"] = snapshot.flameInputHigh ? "high" : "low";
+  health["flameTriggerLevel"] = "high-unverified";
+  health["keypadMapping"] = "unconfigured-stage5";
 
   writeJsonLine(document);
 }
@@ -107,6 +214,7 @@ void emitAck(const char* commandId, bool ok, const char* error = nullptr) {
   JsonDocument document;
   JsonObject root = document.to<JsonObject>();
   root["type"] = "ack";
+  root["project"] = PROJECT_ID;
   root["id"] = commandId;
   root["ok"] = ok;
   if (ok) {
@@ -180,14 +288,18 @@ void setup() {
   Serial.begin(SERIAL_BAUD);
   delay(50);
   serialLine.reserve(SERIAL_LINE_MAX_BYTES);
+  const uint32_t now = millis();
+  sensors.begin(now);
+  sensors.poll(now);
   emitHello();
   emitTelemetry();
-  lastTelemetryAt = millis();
+  lastTelemetryAt = now;
 }
 
 void loop() {
   pollSerial();
   const uint32_t now = millis();
+  sensors.poll(now);
   if (now - lastTelemetryAt >= TELEMETRY_INTERVAL_MS) {
     lastTelemetryAt = now;
     emitTelemetry();

@@ -13,17 +13,17 @@
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">⌂</span>
           <div>
-            <p class="eyebrow">N16R8 · 阶段 2</p>
+            <p class="eyebrow">N16R8 · 阶段 3</p>
             <h1>家庭情境侦探屋</h1>
           </div>
         </div>
-        <div class="source-badge"><span class="source-dot"></span>Mock 模拟数据</div>
+        <div class="source-badge"><span class="source-dot"></span><span id="source-label">等待数据来源</span></div>
       </header>
 
       <section class="truth-strip" aria-label="链路状态">
         <div class="truth-item"><span>WebSocket</span><strong id="ws-status" data-state="waiting">连接中</strong></div>
-        <div class="truth-item"><span>模拟板</span><strong id="board-status" data-state="waiting">等待实时数据</strong></div>
-        <div class="truth-item"><span>USB</span><strong data-state="muted">阶段 2 未接入</strong></div>
+        <div class="truth-item"><span>数据源</span><strong id="board-status" data-state="waiting">等待实时数据</strong></div>
+        <div class="truth-item"><span>USB</span><strong data-state="muted">当前网关未接入</strong></div>
         <div class="truth-item"><span>MQTT</span><strong data-state="muted">未配置</strong></div>
         <div class="truth-item endpoint"><span>本地端点</span><strong id="ws-endpoint">—</strong></div>
       </section>
@@ -33,7 +33,7 @@
           <div class="hero-copy">
             <p class="section-kicker">当前推断</p>
             <h2 id="context-title">等待实时数据</h2>
-            <p id="context-description">启动 mock 网关后，这里才会显示情境判断；页面不会保留过期结论。</p>
+            <p id="context-description">收到本项目的新鲜 telemetry 后才显示情境判断；页面不会保留过期结论。</p>
             <div id="alert-banner" class="alert-banner" hidden></div>
           </div>
           <div class="score-pair" aria-label="情境置信信息">
@@ -107,7 +107,7 @@
         </section>
       </main>
 
-      <footer>阶段 2 本地闭环 · 数据源固定为 Mock · 不代表 USB 真板或云端在线</footer>
+      <footer>阶段 3 协议兼容界面 · Mock 与开发板遥测分开标识 · WebSocket 在线不等于 USB 实物板在线</footer>
     </div>
     <script src="./context-core.js"></script>
     <script src="./app.js"></script>

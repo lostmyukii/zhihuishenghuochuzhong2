@@ -10,6 +10,12 @@ PLATFORMIO_INI = FIRMWARE / "platformio.ini"
 BOARD_JSON = FIRMWARE / "boards" / "n16r8_esp32s3.json"
 PROJECT_CONFIG = FIRMWARE / "include" / "project_config.h"
 MAIN_CPP = FIRMWARE / "src" / "main.cpp"
+SENSORS_HEADER = FIRMWARE / "include" / "sensors.h"
+SENSORS_CPP = FIRMWARE / "src" / "sensors.cpp"
+PROJECT_TYPES = FIRMWARE / "include" / "project_types.h"
+CONTEXT_HEADER = FIRMWARE / "include" / "context_engine.h"
+CONTEXT_CPP = FIRMWARE / "src" / "context_engine.cpp"
+INPUT_FILTER = FIRMWARE / "include" / "input_filter.h"
 
 
 class FirmwareContractTests(unittest.TestCase):
@@ -58,13 +64,18 @@ class FirmwareContractTests(unittest.TestCase):
         for token in [
             'PROJECT_ID = "smartlife-junior-context"',
             'PROFILE_ID = "smartlife-junior-context-detective-v1"',
-            'FIRMWARE_VERSION = "0.1.0"',
+            'FIRMWARE_VERSION = "0.2.0"',
             "SERIAL_BAUD = 115200",
             "FAST_SENSOR_INTERVAL_MS = 200",
             "DHT_INTERVAL_MS = 2000",
             "DHT_STALE_MS = 6000",
             "TELEMETRY_INTERVAL_MS = 500",
             "MQ2_WARMUP_MS = 30000",
+            "DIGITAL_CONFIRM_SAMPLES = 3",
+            "DIGITAL_RECOVERY_SAMPLES = 3",
+            "CONTEXT_MIN_COVERAGE = 70",
+            "CONTEXT_MATCH_THRESHOLD = 65",
+            "CONTEXT_AMBIGUITY_GAP = 8",
         ]:
             with self.subTest(token=token):
                 self.assertIn(token, config)
@@ -88,7 +99,7 @@ class FirmwareContractTests(unittest.TestCase):
             with self.subTest(pin=name):
                 self.assertRegex(config, rf"\b{name}\s*=\s*{pin}\s*;")
 
-    def test_minimal_protocol_has_honest_hello_telemetry_and_ack(self):
+    def test_stage_three_protocol_has_honest_hello_telemetry_and_ack(self):
         source = self.read_required(MAIN_CPP)
 
         for symbol in ["emitHello", "emitTelemetry", "emitAck", "handleCommandLine"]:
@@ -103,11 +114,13 @@ class FirmwareContractTests(unittest.TestCase):
             'features["localVoiceNlu"] = false',
             'features["mcp"] = false',
             'root["rfid"] = false',
-            'health["stage"] = "protocol-skeleton"',
-            'health["sensorsReady"] = false',
+            'health["stage"] = "stage3-sensors-context"',
+            'health["sensorsReady"] = true',
             'health["actuatorsReady"] = false',
-            'health["contextReady"] = false',
+            'health["contextReady"] = true',
             'health["safetyReady"] = false',
+            'health["hardwareVerified"] = false',
+            'health["calibrationRequired"] = true',
             'root["id"] = commandId',
             '"unsupported_command"',
         ]:
@@ -120,22 +133,113 @@ class FirmwareContractTests(unittest.TestCase):
     def test_stage_one_mode_whitelist_is_exact(self):
         source = self.read_required(MAIN_CPP)
         expected_modes = {"detect", "study", "rest", "ventilation", "energy", "custom"}
-        block = source.split("bool isAllowedMode", 1)[1].split("void emitHello", 1)[0]
+        block = source.split("bool isAllowedMode", 1)[1].split(
+            "ContextMode selectedContextMode", 1
+        )[0]
         actual_modes = set(re.findall(r'"([a-z]+)"', block))
 
         self.assertEqual(actual_modes, expected_modes)
 
-    def test_skeleton_does_not_fake_sensor_or_actuator_work(self):
-        source = self.read_required(MAIN_CPP)
+    def test_stage_three_modules_are_split_by_responsibility(self):
+        for path in [SENSORS_HEADER, SENSORS_CPP, PROJECT_TYPES, CONTEXT_HEADER, CONTEXT_CPP, INPUT_FILTER]:
+            self.read_required(path)
 
-        for forbidden in ["analogRead(", "digitalRead(", "digitalWrite(", "pinMode("]:
+        main = self.read_required(MAIN_CPP)
+        self.assertIn("SensorSampler sensors;", main)
+        self.assertIn("ContextEngine contextEngine;", main)
+        self.assertIn("sensors.poll(now);", main)
+        self.assertIn("contextEngine.evaluate", main)
+
+    def test_sensor_sampler_reads_all_inputs_without_driving_actuators(self):
+        source = self.read_required(SENSORS_CPP)
+
+        for token in [
+            "analogRead(PIN_LIGHT)",
+            "analogRead(PIN_SOUND)",
+            "analogRead(PIN_KEYPAD_ADC)",
+            "analogRead(PIN_MQ2)",
+            "digitalRead(PIN_PIR)",
+            "digitalRead(PIN_WATER)",
+            "digitalRead(PIN_FLAME)",
+            "analogReadResolution(12)",
+        ]:
+            with self.subTest(token=token):
+                self.assertIn(token, source)
+
+        combined = "\n".join(
+            self.read_required(path) for path in [MAIN_CPP, SENSORS_CPP, CONTEXT_CPP]
+        )
+        for forbidden in ["digitalWrite(", "ledcWrite(", ".attach(", "Adafruit_NeoPixel"]:
             with self.subTest(forbidden=forbidden):
-                self.assertNotIn(forbidden, source)
+                self.assertNotIn(forbidden, combined)
 
-        self.assertIn('root["mode"] = selectedMode', source)
-        self.assertIn('root["sensors"].to<JsonObject>()', source)
-        self.assertIn('root["actuators"].to<JsonObject>()', source)
-        self.assertIn('root["alerts"].to<JsonArray>()', source)
+    def test_dht_is_polled_independently_and_expires_after_stale_window(self):
+        source = self.read_required(SENSORS_CPP)
+        fast_block = source.split("void SensorSampler::pollFast", 1)[1].split(
+            "void SensorSampler::pollDht", 1
+        )[0]
+        dht_block = source.split("void SensorSampler::pollDht", 1)[1]
+
+        self.assertIn("FAST_SENSOR_INTERVAL_MS", source)
+        self.assertIn("DHT_INTERVAL_MS", source)
+        self.assertIn("DHT_STALE_MS", source)
+        self.assertNotIn("readTemperature", fast_block)
+        self.assertNotIn("readHumidity", fast_block)
+        self.assertIn("dht_.readTemperature()", dht_block)
+        self.assertIn("dht_.readHumidity()", dht_block)
+        self.assertIn("lastDhtSuccessAt_", dht_block)
+        self.assertIn("nowMs - lastDhtSuccessAt_ <= DHT_STALE_MS", source)
+
+    def test_mq2_warmup_and_unverified_digital_levels_are_reported(self):
+        sensors = self.read_required(SENSORS_CPP)
+        main = self.read_required(MAIN_CPP)
+        config = self.read_required(PROJECT_CONFIG)
+
+        self.assertIn("nowMs - startedAt_ >= MQ2_WARMUP_MS", sensors)
+        self.assertIn("StableDigitalFilter", self.read_required(INPUT_FILTER))
+        self.assertIn("WATER_TRIGGER_HIGH = true", config)
+        self.assertIn("FLAME_TRIGGER_HIGH = true", config)
+        for token in [
+            'health["mq2State"]',
+            'health["mq2WarmupRemainingMs"]',
+            'health["waterInputLevel"]',
+            'health["waterTriggerLevel"] = "high-unverified"',
+            'health["flameInputLevel"]',
+            'health["flameTriggerLevel"] = "high-unverified"',
+        ]:
+            with self.subTest(token=token):
+                self.assertIn(token, main)
+
+    def test_telemetry_includes_values_validity_age_and_fixed_evidence_codes(self):
+        source = self.read_required(MAIN_CPP)
+        context = self.read_required(CONTEXT_CPP)
+
+        for token in [
+            'root["sensors"].to<JsonObject>()',
+            'root["sensorValid"].to<JsonObject>()',
+            'root["sensorAgeMs"].to<JsonObject>()',
+            'context["candidate"]',
+            'context["coverage"]',
+            'context["match"]',
+            'context["status"]',
+            'context["supporting"].to<JsonArray>()',
+            'context["opposing"].to<JsonArray>()',
+            'context["missing"].to<JsonArray>()',
+            'root["actuators"].to<JsonObject>()',
+            'root["alerts"].to<JsonArray>()',
+        ]:
+            with self.subTest(token=token):
+                self.assertIn(token, source)
+
+        for evidence in [
+            '"pir_active"',
+            '"light_suitable"',
+            '"sound_high"',
+            '"dht_missing"',
+            '"no_occupancy"',
+        ]:
+            with self.subTest(evidence=evidence):
+                self.assertIn(evidence, context)
 
     def test_agents_and_gitignore_preserve_no_flash_boundary(self):
         agents = self.read_required(ROOT / "AGENTS.md")
