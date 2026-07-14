@@ -107,19 +107,37 @@
     setText("sensor-mq2", valueOrDash(sensors.mq2));
     setText("sensor-hazards", `${sensors.water ? "积水" : "无积水"} / ${sensors.flame ? "火焰" : "无火焰"}`);
 
+    const targets = telemetry.actuatorTargets;
     const actuators = telemetry.actuators;
-    setText("actuator-buzzer", onOff(actuators.buzzer));
-    setText("actuator-fan", Number.isFinite(actuators.fan) ? `${actuators.fan}%` : "—");
-    setText("actuator-servo", Number.isFinite(actuators.servo) ? `${actuators.servo}°` : "—");
-    setText("actuator-relay", onOff(actuators.relay));
-    setText("actuator-rgb", valueOrDash(actuators.rgb));
+    const actuatorView = ContextCore.actuatorPresentation(telemetry);
+    setText("actuator-buzzer", actuatorView.buzzer);
+    setText("actuator-fan", actuatorView.fan);
+    setText("actuator-servo", actuatorView.servo);
+    setText("actuator-relay", actuatorView.relay);
+    setText("actuator-rgb", actuatorView.rgb);
+    if (!targets || !actuators) logEvent("阶段4执行器字段缺失");
 
-    const alerts = telemetry.alerts.map(ContextCore.alertLabel);
+    const safetyCauses = telemetry.safety && Array.isArray(telemetry.safety.causes) ? telemetry.safety.causes : [];
+    const visibleAlertCodes = telemetry.alerts.slice();
+    if (safetyCauses.includes("safety_sensor_fault") && !visibleAlertCodes.includes("safety_sensor_fault")) visibleAlertCodes.push("safety_sensor_fault");
+    const alerts = visibleAlertCodes.map(ContextCore.alertLabel);
     const banner = $("alert-banner");
     banner.hidden = alerts.length === 0;
     banner.textContent = alerts.length ? `安全优先：${alerts.join("、")}` : "";
-    const actuatorsReady = telemetry.health && telemetry.health.actuatorsReady !== false;
-    setText("safety-state", telemetry.safety && telemetry.safety.overridden ? "安全覆盖中" : actuatorsReady ? "情境策略" : "阶段 3 未驱动");
+    const health = telemetry.health || {};
+    const safetyOverride = telemetry.safety && telemetry.safety.overrideActive === true;
+    if (actuatorView.applyLabel === "Mock模拟执行") {
+      setText("safety-state", safetyOverride ? "安全覆盖中 · Mock模拟执行" : "Mock模拟执行");
+    } else if (health.actuatorApplyState === "unarmed") {
+      setText("safety-state", safetyOverride ? "安全覆盖计划 · 未武装/未应用" : "安全引擎就绪 · 未武装/未应用");
+    } else {
+      setText("safety-state", safetyOverride ? "安全覆盖中" : actuatorView.applyLabel);
+    }
+    setText("calibration-status", telemetry.mock === true
+      ? "Mock数据仅验证协议，不代表实物标定。"
+      : actuatorView.calibrationRequired
+        ? "待实物标定：计划动作不代表硬件已经执行。"
+        : "硬件标定状态已由设备上报。");
     document.querySelectorAll("[data-mode]").forEach((button) => button.classList.toggle("active", button.dataset.mode === telemetry.mode));
     document.querySelectorAll("[data-scenario]").forEach((button) => button.classList.toggle("active", button.dataset.scenario === telemetry.mockScenario));
     updateAge();
@@ -220,7 +238,7 @@
     setStatus("board-status", "等待实时数据", "waiting");
     setText("context-title", "等待实时数据");
     setText("context-description", "telemetry 已过期，页面已清除旧情境判断。");
-    ["coverage-value", "match-value", "context-status", "telemetry-age", "sensor-light", "sensor-sound", "sensor-temperature", "sensor-humidity", "sensor-pir", "sensor-keypad", "sensor-mq2", "sensor-hazards", "actuator-buzzer", "actuator-fan", "actuator-servo", "actuator-relay", "actuator-rgb", "safety-state"].forEach((id) => setText(id, "—"));
+    ["coverage-value", "match-value", "context-status", "telemetry-age", "sensor-light", "sensor-sound", "sensor-temperature", "sensor-humidity", "sensor-pir", "sensor-keypad", "sensor-mq2", "sensor-hazards", "actuator-buzzer", "actuator-fan", "actuator-servo", "actuator-relay", "actuator-rgb", "safety-state", "calibration-status"].forEach((id) => setText(id, "—"));
     renderList("supporting-list", [], "等待实时数据");
     renderList("opposing-list", [], "—");
     renderList("missing-list", [], "—");

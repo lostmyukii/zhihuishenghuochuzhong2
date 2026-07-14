@@ -18,6 +18,31 @@
     mq2: "烟雾或燃气风险",
     water: "检测到积水风险",
     flame: "检测到火焰风险",
+    safety_sensor_fault: "安全传感器数据异常",
+  });
+  const SERVO_LABELS = Object.freeze({
+    hold: "保持位置",
+    study: "学习位置",
+    rest: "休息位置",
+    "ventilation-open": "通风打开",
+    energy: "节能位置",
+    "safety-closed": "安全关闭",
+  });
+  const BUZZER_LABELS = Object.freeze({
+    off: "关闭",
+    alarm: "安全报警",
+    intermittent: "间歇报警",
+  });
+  const RGB_LABELS = Object.freeze({
+    off: "关闭",
+    study: "学习状态",
+    orange: "橙色",
+    "blue-low": "低亮蓝色",
+    cyan: "青色",
+    yellow: "黄色",
+    red: "红色",
+    "blue-red": "蓝红提示",
+    gray: "灰色",
   });
   const EVIDENCE_LABELS = Object.freeze({
     pir_active: "检测到近期人体活动",
@@ -81,11 +106,64 @@
     return {
       ...frame,
       sensors: frame.sensors && typeof frame.sensors === "object" ? frame.sensors : {},
+      actuatorTargets: frame.actuatorTargets && typeof frame.actuatorTargets === "object" ? frame.actuatorTargets : {},
       actuators: frame.actuators && typeof frame.actuators === "object" ? frame.actuators : {},
       context: frame.context && typeof frame.context === "object" ? frame.context : {},
       alerts: Array.isArray(frame.alerts) ? frame.alerts : [],
+      safety: frame.safety && typeof frame.safety === "object" ? frame.safety : {},
+      health: frame.health && typeof frame.health === "object" ? frame.health : {},
     };
   }
 
-  return {PROJECT_ID, MODE_LABELS, ALERT_LABELS, EVIDENCE_LABELS, STATUS_LABELS, isFresh, modeLabel, alertLabel, evidenceLabel, statusLabel, normalizeTelemetry};
+  function known(value, formatter) {
+    return value === undefined || value === null || value === "" ? "未知" : formatter(value);
+  }
+
+  function boolAction(value) {
+    return value === true ? "开启" : value === false ? "关闭" : "未知";
+  }
+
+  function targetLabels(targets) {
+    return {
+      fan: known(targets.fanPercent, (value) => `${value}%`),
+      servo: known(targets.servoPosition, (value) => SERVO_LABELS[value] || value),
+      relay: boolAction(targets.relayOn),
+      buzzer: known(targets.buzzerMode, (value) => BUZZER_LABELS[value] || value),
+      rgb: known(targets.rgbState, (value) => RGB_LABELS[value] || value),
+    };
+  }
+
+  function actualLabels(actuators) {
+    return {
+      fan: known(actuators.fanPercent, (value) => `${value}%`),
+      servo: known(actuators.servoAngle, (value) => `${value}°`),
+      relay: boolAction(actuators.relayOn),
+      buzzer: boolAction(actuators.buzzerOn),
+      rgb: known(actuators.rgbState, (value) => RGB_LABELS[value] || value),
+    };
+  }
+
+  function actuatorPresentation(frame) {
+    const telemetry = normalizeTelemetry(frame) || frame || {};
+    const targets = targetLabels(telemetry.actuatorTargets || {});
+    const actuators = actualLabels(telemetry.actuators || {});
+    const health = telemetry.health || {};
+    const simulated = telemetry.mock === true || health.actuatorApplyState === "simulated";
+    const unarmed = !simulated && health.actuatorApplyState === "unarmed";
+    const actualPrefix = simulated ? "模拟执行" : "实际";
+    const actualValue = (key) => unarmed ? "未武装/未应用" : actuators[key];
+    const row = (key) => `计划：${targets[key]} / ${actualPrefix}：${actualValue(key)}`;
+
+    return {
+      fan: row("fan"),
+      servo: row("servo"),
+      relay: row("relay"),
+      buzzer: row("buzzer"),
+      rgb: row("rgb"),
+      applyLabel: simulated ? "Mock模拟执行" : unarmed ? "执行器未武装" : "实际状态",
+      calibrationRequired: health.calibrationRequired === true || health.hardwareVerified === false,
+    };
+  }
+
+  return {PROJECT_ID, MODE_LABELS, ALERT_LABELS, EVIDENCE_LABELS, STATUS_LABELS, isFresh, modeLabel, alertLabel, evidenceLabel, statusLabel, normalizeTelemetry, actuatorPresentation};
 });

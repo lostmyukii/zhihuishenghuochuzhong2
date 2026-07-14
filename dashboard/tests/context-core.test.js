@@ -47,3 +47,63 @@ test("fixed firmware evidence codes become Chinese explanations", () => {
   assert.equal(core.evidenceLabel("dht_missing"), "温湿度证据缺失或已过期");
   assert.equal(core.evidenceLabel("future-evidence"), "future-evidence");
 });
+
+test("real unarmed telemetry keeps planned actions separate from actual state", () => {
+  const telemetry = core.normalizeTelemetry({
+    type: "telemetry",
+    project: "smartlife-junior-context",
+    actuatorTargets: {fanPercent: 100, servoPosition: "ventilation-open", relayOn: false, buzzerMode: "alarm", rgbState: "red"},
+    actuators: {fanPercent: null, servoAngle: null, relayOn: null, buzzerOn: null, rgbState: null},
+    safety: {state: "risk", overrideActive: true},
+    health: {actuatorApplyState: "unarmed", hardwareVerified: false, calibrationRequired: true},
+  });
+  const view = core.actuatorPresentation(telemetry);
+
+  assert.equal(view.fan, "计划：100% / 实际：未武装/未应用");
+  assert.equal(view.servo, "计划：通风打开 / 实际：未武装/未应用");
+  assert.equal(view.relay, "计划：关闭 / 实际：未武装/未应用");
+  assert.equal(view.buzzer, "计划：安全报警 / 实际：未武装/未应用");
+  assert.equal(view.rgb, "计划：红色 / 实际：未武装/未应用");
+  assert.equal(view.applyLabel, "执行器未武装");
+  assert.equal(view.calibrationRequired, true);
+});
+
+test("mock telemetry labels actual values as simulated execution", () => {
+  const telemetry = core.normalizeTelemetry({
+    type: "telemetry",
+    project: "smartlife-junior-context",
+    mock: true,
+    actuatorTargets: {fanPercent: 35, servoPosition: "rest", relayOn: false, buzzerMode: "off", rgbState: "blue-low"},
+    actuators: {fanPercent: 35, servoAngle: 15, relayOn: false, buzzerOn: false, rgbState: "blue-low"},
+    health: {actuatorApplyState: "simulated", hardwareVerified: false, calibrationRequired: true},
+  });
+  const view = core.actuatorPresentation(telemetry);
+
+  assert.equal(view.fan, "计划：35% / 模拟执行：35%");
+  assert.equal(view.servo, "计划：休息位置 / 模拟执行：15°");
+  assert.equal(view.applyLabel, "Mock模拟执行");
+});
+
+test("future real applied values are never inferred from targets", () => {
+  const applied = core.normalizeTelemetry({
+    type: "telemetry",
+    project: "smartlife-junior-context",
+    actuatorTargets: {fanPercent: 70},
+    actuators: {fanPercent: 42},
+    health: {actuatorApplyState: "applied"},
+  });
+  const missing = core.normalizeTelemetry({
+    type: "telemetry",
+    project: "smartlife-junior-context",
+    actuatorTargets: {},
+    actuators: {},
+    health: {},
+  });
+
+  assert.equal(core.actuatorPresentation(applied).fan, "计划：70% / 实际：42%");
+  assert.equal(core.actuatorPresentation(missing).fan, "计划：未知 / 实际：未知");
+});
+
+test("safety sensor faults have an explicit Chinese label", () => {
+  assert.equal(core.alertLabel("safety_sensor_fault"), "安全传感器数据异常");
+});

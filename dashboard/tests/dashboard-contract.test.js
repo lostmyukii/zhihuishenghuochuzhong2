@@ -42,3 +42,32 @@ test("client implements query endpoint, ack timeout and stale clearing", () => {
   assert.doesNotMatch(source, /telemetry\.mock\s*!==\s*true\)\s*return/);
   assert.match(source, /ContextCore\.evidenceLabel/);
 });
+
+test("stage four dashboard separates targets, mock execution and physical truth", () => {
+  const html = read("index.html");
+  const source = read("app.js");
+
+  assert.match(html, /阶段 4 软件基线/);
+  assert.match(html, /id=["']calibration-status["']/);
+  assert.match(source, /telemetry\.actuatorTargets/);
+  assert.match(source, /telemetry\.actuators/);
+  assert.match(source, /ContextCore\.actuatorPresentation/);
+  assert.match(source, /未武装\/未应用/);
+  assert.match(source, /Mock模拟执行/);
+  assert.match(source, /calibration-status/);
+  assert.doesNotMatch(html, /真板在线/);
+});
+
+test("stale clearing includes stage four actuation and calibration state", () => {
+  const source = read("app.js");
+  const clearBlock = source.split("function clearTelemetry", 2)[1];
+
+  assert.match(clearBlock, /actuator-buzzer/);
+  assert.match(clearBlock, /actuator-fan/);
+  assert.match(clearBlock, /actuator-servo/);
+  assert.match(clearBlock, /actuator-relay/);
+  assert.match(clearBlock, /actuator-rgb/);
+  assert.match(clearBlock, /safety-state/);
+  assert.match(clearBlock, /calibration-status/);
+  assert.match(clearBlock, /alert-banner/);
+});
