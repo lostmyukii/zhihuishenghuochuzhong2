@@ -1,18 +1,31 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
+#include "actuator_driver.h"
+#include "actuator_planner.h"
 #include "context_engine.h"
 #include "project_config.h"
 #include "project_types.h"
+#include "safety_engine.h"
 #include "sensors.h"
 
 namespace {
 
 String selectedMode = "detect";
 String serialLine;
+bool buzzerEnabled = true;
+bool decisionDirty = true;
 uint32_t lastTelemetryAt = 0;
+uint32_t lastSafetySampleAt = UINT32_MAX;
 SensorSampler sensors;
 ContextEngine contextEngine;
+SafetyEngine safetyEngine;
+ActuatorPlanner actuatorPlanner;
+ActuatorDriver actuatorDriver;
+ContextResult currentContext;
+SafetyResult currentSafety;
+ActuatorPlan currentPlan;
+ActuatorApplyResult currentApply;
 
 void writeJsonLine(JsonDocument& document) {
   serializeJson(document, Serial);
@@ -26,6 +39,22 @@ bool isAllowedMode(const char* mode) {
           strcmp(mode, "energy") == 0 || strcmp(mode, "custom") == 0);
 }
 
+bool isAllowedServoPosition(const char* value) {
+  return value != nullptr &&
+         (strcmp(value, "study") == 0 || strcmp(value, "rest") == 0 ||
+          strcmp(value, "ventilation-open") == 0 ||
+          strcmp(value, "energy") == 0 ||
+          strcmp(value, "safety-closed") == 0);
+}
+
+bool isAllowedRgbState(const char* value) {
+  return value != nullptr &&
+         (strcmp(value, "off") == 0 || strcmp(value, "study") == 0 ||
+          strcmp(value, "orange") == 0 || strcmp(value, "blue-low") == 0 ||
+          strcmp(value, "cyan") == 0 || strcmp(value, "red") == 0 ||
+          strcmp(value, "blue-red") == 0);
+}
+
 ContextMode selectedContextMode() {
   if (selectedMode == "study") return ContextMode::Study;
   if (selectedMode == "rest") return ContextMode::Rest;
@@ -36,13 +65,28 @@ ContextMode selectedContextMode() {
 }
 
 void addStageHealth(JsonObject health) {
-  health["stage"] = "stage3-sensors-context";
+  health["stage"] = "stage4-actuator-safety-software";
   health["sensorsReady"] = true;
+  health["actuatorsArmed"] = false;
   health["actuatorsReady"] = false;
+  health["actuatorApplyState"] = "unarmed";
   health["contextReady"] = true;
-  health["safetyReady"] = false;
+  health["safetyReady"] = true;
   health["hardwareVerified"] = false;
   health["calibrationRequired"] = true;
+}
+
+void updateDecision(uint32_t nowMs) {
+  const SensorSnapshot& snapshot = sensors.snapshot();
+  if (snapshot.mq2.updatedAtMs != lastSafetySampleAt) {
+    currentSafety = safetyEngine.update(snapshot, nowMs);
+    lastSafetySampleAt = snapshot.mq2.updatedAtMs;
+  }
+  currentContext = contextEngine.evaluate(snapshot, selectedContextMode());
+  currentPlan = actuatorPlanner.plan(selectedContextMode(), snapshot, currentContext,
+                                     currentSafety, buzzerEnabled);
+  currentApply = actuatorDriver.apply(currentPlan.finalTarget);
+  decisionDirty = false;
 }
 
 void emitHello() {
@@ -59,6 +103,9 @@ void emitHello() {
 
   JsonObject features = root["features"].to<JsonObject>();
   features["contextReasoning"] = true;
+  features["safetyReasoning"] = true;
+  features["actuatorPlanning"] = true;
+  features["physicalActuators"] = false;
   features["webVoiceIntent"] = true;
   features["localVoiceNlu"] = false;
   features["mcp"] = false;
@@ -81,6 +128,8 @@ void emitHello() {
   JsonObject capabilities = root["capabilities"].to<JsonObject>();
   JsonArray commands = capabilities["commands"].to<JsonArray>();
   commands.add("setMode");
+  commands.add("setBuzzerEnabled");
+  commands.add("setActuator");
   JsonArray modes = capabilities["modes"].to<JsonArray>();
   modes.add("detect");
   modes.add("study");
@@ -94,6 +143,7 @@ void emitHello() {
   health["sensorSampling"] = "real-gpio-unverified";
   health["thresholdProfile"] = "provisional-unverified";
   health["mq2Divider"] = "required-if-powered-at-5v";
+  health["buzzerEnabled"] = buzzerEnabled;
 
   writeJsonLine(document);
 }
@@ -122,11 +172,22 @@ void addEvidence(JsonArray array, const EvidenceList& evidence) {
   }
 }
 
+void addSafetyCauses(JsonArray array, const SafetyCauseList& causes,
+                     bool includeFault) {
+  for (uint8_t index = 0; index < causes.count; ++index) {
+    if (!includeFault && causes.items[index] == SafetyCause::SafetySensorFault) {
+      continue;
+    }
+    array.add(safetyCauseName(causes.items[index]));
+  }
+}
+
 void emitTelemetry() {
   const uint32_t nowMs = millis();
+  if (decisionDirty) {
+    updateDecision(nowMs);
+  }
   const SensorSnapshot& snapshot = sensors.snapshot();
-  const ContextResult result =
-      contextEngine.evaluate(snapshot, selectedContextMode());
 
   JsonDocument document;
   JsonObject root = document.to<JsonObject>();
@@ -171,20 +232,44 @@ void emitTelemetry() {
   setAge(ages, "flame", snapshot.flame, nowMs);
 
   JsonObject context = root["context"].to<JsonObject>();
-  context["candidate"] = contextModeName(result.candidate);
-  context["coverage"] = result.coverage;
-  context["match"] = result.match;
-  context["status"] = contextStatusName(result.status);
-  context["confirmedByUser"] = result.confirmedByUser;
+  context["candidate"] = contextModeName(currentContext.candidate);
+  context["coverage"] = currentContext.coverage;
+  context["match"] = currentContext.match;
+  context["status"] = contextStatusName(currentContext.status);
+  context["confirmedByUser"] = currentContext.confirmedByUser;
   JsonArray supporting = context["supporting"].to<JsonArray>();
   JsonArray opposing = context["opposing"].to<JsonArray>();
   JsonArray missing = context["missing"].to<JsonArray>();
-  addEvidence(supporting, result.supporting);
-  addEvidence(opposing, result.opposing);
-  addEvidence(missing, result.missing);
+  addEvidence(supporting, currentContext.supporting);
+  addEvidence(opposing, currentContext.opposing);
+  addEvidence(missing, currentContext.missing);
 
-  root["actuators"].to<JsonObject>();
-  root["alerts"].to<JsonArray>();
+  JsonObject targets = root["actuatorTargets"].to<JsonObject>();
+  targets["fanPercent"] = currentPlan.finalTarget.fanPercent;
+  targets["servoPosition"] =
+      servoPositionName(currentPlan.finalTarget.servoPosition);
+  targets["relayOn"] = currentPlan.finalTarget.relayOn;
+  targets["buzzerMode"] = buzzerModeName(currentPlan.finalTarget.buzzerMode);
+  targets["rgbState"] = rgbStateName(currentPlan.finalTarget.rgbState);
+
+  JsonObject actuators = root["actuators"].to<JsonObject>();
+  actuators["fanPercent"] = nullptr;
+  actuators["servoAngle"] = nullptr;
+  actuators["relayOn"] = nullptr;
+  actuators["buzzerOn"] = nullptr;
+  actuators["rgbState"] = nullptr;
+
+  JsonArray alerts = root["alerts"].to<JsonArray>();
+  addSafetyCauses(alerts, currentSafety.causes, false);
+
+  JsonObject safety = root["safety"].to<JsonObject>();
+  safety["state"] = safetyStateName(currentSafety.state);
+  safety["primary"] = safetyCauseName(currentSafety.primary);
+  JsonArray causes = safety["causes"].to<JsonArray>();
+  addSafetyCauses(causes, currentSafety.causes, true);
+  safety["overrideActive"] = currentSafety.overrideActive;
+  safety["buzzerRequested"] = currentSafety.buzzerRequested;
+  safety["buzzerMuted"] = currentPlan.buzzerMuted;
 
   JsonObject health = root["health"].to<JsonObject>();
   addStageHealth(health);
@@ -206,6 +291,8 @@ void emitTelemetry() {
   health["flameInputLevel"] = snapshot.flameInputHigh ? "high" : "low";
   health["flameTriggerLevel"] = "high-unverified";
   health["keypadMapping"] = "unconfigured-stage5";
+  health["buzzerEnabled"] = buzzerEnabled;
+  health["actuatorApplyState"] = actuatorApplyStateName(currentApply.state);
 
   writeJsonLine(document);
 }
@@ -215,28 +302,57 @@ void emitAck(const char* commandId, bool ok, const char* error = nullptr) {
   JsonObject root = document.to<JsonObject>();
   root["type"] = "ack";
   root["project"] = PROJECT_ID;
-  root["id"] = commandId;
+  if (commandId == nullptr) {
+    root["id"] = nullptr;
+  } else {
+    root["id"] = commandId;
+  }
   root["ok"] = ok;
   if (ok) {
     JsonObject applied = root["applied"].to<JsonObject>();
     applied["mode"] = selectedMode;
+    applied["buzzerEnabled"] = buzzerEnabled;
   } else {
     root["error"] = error == nullptr ? "unsupported_command" : error;
   }
   writeJsonLine(document);
 }
 
+bool validActuatorCommand(JsonObjectConst actuator) {
+  if (actuator.size() != 1) {
+    return false;
+  }
+  if (!actuator["fan"].isNull()) {
+    if (!actuator["fan"].is<int>()) return false;
+    const int value = actuator["fan"].as<int>();
+    return value >= 0 && value <= 100;
+  }
+  if (!actuator["servo"].isNull()) {
+    return isAllowedServoPosition(actuator["servo"].as<const char*>());
+  }
+  if (!actuator["relay"].isNull()) {
+    return actuator["relay"].is<bool>();
+  }
+  if (!actuator["buzzer"].isNull()) {
+    return actuator["buzzer"].is<bool>();
+  }
+  if (!actuator["rgb"].isNull()) {
+    return isAllowedRgbState(actuator["rgb"].as<const char*>());
+  }
+  return false;
+}
+
 void handleCommandLine(const String& line) {
   JsonDocument command;
   DeserializationError parseError = deserializeJson(command, line);
   if (parseError) {
-    emitAck("", false, "invalid_json");
+    emitAck(nullptr, false, "invalid_json");
     return;
   }
 
-  const char* commandId = command["id"] | "";
-  if (commandId[0] == '\0') {
-    emitAck("", false, "missing_id");
+  const char* commandId = command["id"].as<const char*>();
+  if (commandId == nullptr || commandId[0] == '\0') {
+    emitAck(nullptr, false, "missing_id");
     return;
   }
 
@@ -246,18 +362,53 @@ void handleCommandLine(const String& line) {
     return;
   }
 
-  const char* requestedMode = command["mode"].as<const char*>();
-  if (requestedMode != nullptr) {
+  const bool hasMode = !command["mode"].isNull();
+  const bool hasSet = command["set"].is<JsonObjectConst>();
+  const bool hasActuator = command["actuator"].is<JsonObjectConst>();
+  const uint8_t operationCount = static_cast<uint8_t>(hasMode) +
+                                 static_cast<uint8_t>(hasSet) +
+                                 static_cast<uint8_t>(hasActuator);
+  if (operationCount != 1) {
+    emitAck(commandId, false, "unsupported_command");
+    return;
+  }
+
+  if (hasMode) {
+    const char* requestedMode = command["mode"].as<const char*>();
     if (!isAllowedMode(requestedMode)) {
       emitAck(commandId, false, "unsupported_mode");
       return;
     }
     selectedMode = requestedMode;
+    decisionDirty = true;
     emitAck(commandId, true);
     return;
   }
 
-  emitAck(commandId, false, "unsupported_command");
+  if (hasSet) {
+    JsonObjectConst settings = command["set"].as<JsonObjectConst>();
+    if (settings.size() != 1 ||
+        !command["set"]["buzzerEnabled"].is<bool>()) {
+      emitAck(commandId, false, "unsupported_command");
+      return;
+    }
+    const bool requested = command["set"]["buzzerEnabled"].as<bool>();
+    buzzerEnabled = requested;
+    decisionDirty = true;
+    emitAck(commandId, true);
+    return;
+  }
+
+  JsonObjectConst actuator = command["actuator"].as<JsonObjectConst>();
+  if (!validActuatorCommand(actuator)) {
+    emitAck(commandId, false, "invalid_actuator_command");
+    return;
+  }
+  if (!ACTUATORS_ARMED) {
+    emitAck(commandId, false, "actuators_unarmed");
+    return;
+  }
+  emitAck(commandId, false, "actuators_unarmed");
 }
 
 void pollSerial() {
@@ -275,7 +426,7 @@ void pollSerial() {
     }
     if (serialLine.length() >= SERIAL_LINE_MAX_BYTES) {
       serialLine = "";
-      emitAck("", false, "line_too_long");
+      emitAck(nullptr, false, "line_too_long");
       continue;
     }
     serialLine += value;
@@ -288,9 +439,11 @@ void setup() {
   Serial.begin(SERIAL_BAUD);
   delay(50);
   serialLine.reserve(SERIAL_LINE_MAX_BYTES);
+  currentApply = actuatorDriver.begin();
   const uint32_t now = millis();
   sensors.begin(now);
   sensors.poll(now);
+  updateDecision(now);
   emitHello();
   emitTelemetry();
   lastTelemetryAt = now;
@@ -300,6 +453,9 @@ void loop() {
   pollSerial();
   const uint32_t now = millis();
   sensors.poll(now);
+  if (sensors.snapshot().mq2.updatedAtMs != lastSafetySampleAt || decisionDirty) {
+    updateDecision(now);
+  }
   if (now - lastTelemetryAt >= TELEMETRY_INTERVAL_MS) {
     lastTelemetryAt = now;
     emitTelemetry();

@@ -7,7 +7,7 @@ constexpr const char* PROJECT_ID = "smartlife-junior-context";
 constexpr const char* PROFILE_ID = "smartlife-junior-context-detective-v1";
 constexpr const char* DEVICE_NAME = "N16R8 无摄像头家庭情境侦探屋";
 constexpr const char* BOARD_ID = "n16r8_esp32s3";
-constexpr const char* FIRMWARE_VERSION = "0.2.0";
+constexpr const char* FIRMWARE_VERSION = "0.3.0";
 
 constexpr uint32_t SERIAL_BAUD = 115200;
 

@@ -64,6 +64,10 @@ enum class RgbState : uint8_t {
   Gray,
 };
 
+enum class ActuatorApplyState : uint8_t {
+  Unarmed,
+};
+
 struct SensorSample {
   float value = 0.0F;
   bool valid = false;
@@ -164,4 +168,8 @@ struct ActuatorPlan {
   ActuatorTarget finalTarget;
   SafetyResult safety;
   bool buzzerMuted = false;
+};
+
+struct ActuatorApplyResult {
+  ActuatorApplyState state = ActuatorApplyState::Unarmed;
 };

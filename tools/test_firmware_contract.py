@@ -16,6 +16,12 @@ PROJECT_TYPES = FIRMWARE / "include" / "project_types.h"
 CONTEXT_HEADER = FIRMWARE / "include" / "context_engine.h"
 CONTEXT_CPP = FIRMWARE / "src" / "context_engine.cpp"
 INPUT_FILTER = FIRMWARE / "include" / "input_filter.h"
+SAFETY_HEADER = FIRMWARE / "include" / "safety_engine.h"
+SAFETY_CPP = FIRMWARE / "src" / "safety_engine.cpp"
+PLANNER_HEADER = FIRMWARE / "include" / "actuator_planner.h"
+PLANNER_CPP = FIRMWARE / "src" / "actuator_planner.cpp"
+DRIVER_HEADER = FIRMWARE / "include" / "actuator_driver.h"
+DRIVER_CPP = FIRMWARE / "src" / "actuator_driver.cpp"
 
 
 class FirmwareContractTests(unittest.TestCase):
@@ -64,7 +70,7 @@ class FirmwareContractTests(unittest.TestCase):
         for token in [
             'PROJECT_ID = "smartlife-junior-context"',
             'PROFILE_ID = "smartlife-junior-context-detective-v1"',
-            'FIRMWARE_VERSION = "0.2.0"',
+            'FIRMWARE_VERSION = "0.3.0"',
             "SERIAL_BAUD = 115200",
             "FAST_SENSOR_INTERVAL_MS = 200",
             "DHT_INTERVAL_MS = 2000",
@@ -73,6 +79,18 @@ class FirmwareContractTests(unittest.TestCase):
             "MQ2_WARMUP_MS = 30000",
             "DIGITAL_CONFIRM_SAMPLES = 3",
             "DIGITAL_RECOVERY_SAMPLES = 3",
+            "PROVISIONAL_MQ2_ALERT_RAW = 2600",
+            "PROVISIONAL_MQ2_RECOVERY_RAW = 2400",
+            "FAST_SAFETY_STALE_MS = 1500",
+            "FAN_LOW_PERCENT = 35",
+            "FAN_VENTILATION_PERCENT = 70",
+            "FAN_ALERT_PERCENT = 100",
+            "ACTUATORS_ARMED = false",
+            "BUZZER_ARMED = false",
+            "FAN_ARMED = false",
+            "SERVO_ARMED = false",
+            "RELAY_ARMED = false",
+            "RGB_ARMED = false",
             "CONTEXT_MIN_COVERAGE = 70",
             "CONTEXT_MATCH_THRESHOLD = 65",
             "CONTEXT_AMBIGUITY_GAP = 8",
@@ -99,7 +117,7 @@ class FirmwareContractTests(unittest.TestCase):
             with self.subTest(pin=name):
                 self.assertRegex(config, rf"\b{name}\s*=\s*{pin}\s*;")
 
-    def test_stage_three_protocol_has_honest_hello_telemetry_and_ack(self):
+    def test_stage_four_protocol_has_honest_hello_telemetry_and_ack(self):
         source = self.read_required(MAIN_CPP)
 
         for symbol in ["emitHello", "emitTelemetry", "emitAck", "handleCommandLine"]:
@@ -113,16 +131,23 @@ class FirmwareContractTests(unittest.TestCase):
             'features["webVoiceIntent"] = true',
             'features["localVoiceNlu"] = false',
             'features["mcp"] = false',
+            'features["safetyReasoning"] = true',
+            'features["actuatorPlanning"] = true',
+            'features["physicalActuators"] = false',
             'root["rfid"] = false',
-            'health["stage"] = "stage3-sensors-context"',
+            'health["stage"] = "stage4-actuator-safety-software"',
             'health["sensorsReady"] = true',
             'health["actuatorsReady"] = false',
+            'health["actuatorsArmed"] = false',
+            'health["actuatorApplyState"] = "unarmed"',
             'health["contextReady"] = true',
-            'health["safetyReady"] = false',
+            'health["safetyReady"] = true',
             'health["hardwareVerified"] = false',
             'health["calibrationRequired"] = true',
             'root["id"] = commandId',
             '"unsupported_command"',
+            '"invalid_actuator_command"',
+            '"actuators_unarmed"',
         ]:
             with self.subTest(token=token):
                 self.assertIn(token, source)
@@ -134,7 +159,7 @@ class FirmwareContractTests(unittest.TestCase):
         source = self.read_required(MAIN_CPP)
         expected_modes = {"detect", "study", "rest", "ventilation", "energy", "custom"}
         block = source.split("bool isAllowedMode", 1)[1].split(
-            "ContextMode selectedContextMode", 1
+            "bool isAllowedServoPosition", 1
         )[0]
         actual_modes = set(re.findall(r'"([a-z]+)"', block))
 
@@ -142,15 +167,53 @@ class FirmwareContractTests(unittest.TestCase):
         self.assertIn('command["mode"].as<const char*>()', source)
         self.assertNotIn('command["mode"] | nullptr', source)
 
-    def test_stage_three_modules_are_split_by_responsibility(self):
-        for path in [SENSORS_HEADER, SENSORS_CPP, PROJECT_TYPES, CONTEXT_HEADER, CONTEXT_CPP, INPUT_FILTER]:
+    def test_stage_four_modules_are_split_by_responsibility(self):
+        for path in [
+            SENSORS_HEADER,
+            SENSORS_CPP,
+            PROJECT_TYPES,
+            CONTEXT_HEADER,
+            CONTEXT_CPP,
+            INPUT_FILTER,
+            SAFETY_HEADER,
+            SAFETY_CPP,
+            PLANNER_HEADER,
+            PLANNER_CPP,
+            DRIVER_HEADER,
+            DRIVER_CPP,
+        ]:
             self.read_required(path)
 
         main = self.read_required(MAIN_CPP)
         self.assertIn("SensorSampler sensors;", main)
         self.assertIn("ContextEngine contextEngine;", main)
+        self.assertIn("SafetyEngine safetyEngine;", main)
+        self.assertIn("ActuatorPlanner actuatorPlanner;", main)
+        self.assertIn("ActuatorDriver actuatorDriver;", main)
         self.assertIn("sensors.poll(now);", main)
         self.assertIn("contextEngine.evaluate", main)
+        self.assertIn("safetyEngine.update", main)
+        self.assertIn("actuatorPlanner.plan", main)
+        self.assertIn("actuatorDriver.apply", main)
+
+    def test_actuator_driver_is_unarmed_and_has_no_physical_io(self):
+        source = self.read_required(DRIVER_CPP)
+        header = self.read_required(DRIVER_HEADER)
+
+        self.assertIn("ActuatorApplyState::Unarmed", source)
+        self.assertIn("ACTUATORS_ARMED", source)
+        self.assertIn("class ActuatorDriver", header)
+        for forbidden in [
+            "pinMode(",
+            "digitalWrite(",
+            "ledcWrite(",
+            ".attach(",
+            "Adafruit_NeoPixel",
+            ".begin(",
+            ".show(",
+        ]:
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
 
     def test_sensor_sampler_reads_all_inputs_without_driving_actuators(self):
         source = self.read_required(SENSORS_CPP)
@@ -212,7 +275,7 @@ class FirmwareContractTests(unittest.TestCase):
             with self.subTest(token=token):
                 self.assertIn(token, main)
 
-    def test_telemetry_includes_values_validity_age_and_fixed_evidence_codes(self):
+    def test_telemetry_includes_values_targets_actuals_safety_and_evidence(self):
         source = self.read_required(MAIN_CPP)
         context = self.read_required(CONTEXT_CPP)
 
@@ -228,7 +291,14 @@ class FirmwareContractTests(unittest.TestCase):
             'context["opposing"].to<JsonArray>()',
             'context["missing"].to<JsonArray>()',
             'root["actuators"].to<JsonObject>()',
+            'root["actuatorTargets"].to<JsonObject>()',
             'root["alerts"].to<JsonArray>()',
+            'root["safety"].to<JsonObject>()',
+            'actuators["fanPercent"] = nullptr',
+            'actuators["servoAngle"] = nullptr',
+            'actuators["relayOn"] = nullptr',
+            'actuators["buzzerOn"] = nullptr',
+            'actuators["rgbState"] = nullptr',
         ]:
             with self.subTest(token=token):
                 self.assertIn(token, source)
@@ -242,6 +312,25 @@ class FirmwareContractTests(unittest.TestCase):
         ]:
             with self.subTest(evidence=evidence):
                 self.assertIn(evidence, context)
+
+    def test_stage_four_command_validation_and_buzzer_mute_are_explicit(self):
+        source = self.read_required(MAIN_CPP)
+
+        for token in [
+            'command["set"]["buzzerEnabled"]',
+            'command["actuator"]',
+            '"missing_id"',
+            '"unsupported_type"',
+            '"unsupported_mode"',
+            '"invalid_actuator_command"',
+            '"actuators_unarmed"',
+            'root["id"] = nullptr',
+        ]:
+            with self.subTest(token=token):
+                self.assertIn(token, source)
+
+        self.assertIn("buzzerEnabled = requested", source)
+        self.assertNotIn("buzzerEnabled = false;  // actuator", source)
 
     def test_agents_and_gitignore_preserve_no_flash_boundary(self):
         agents = self.read_required(ROOT / "AGENTS.md")
