@@ -158,3 +158,10 @@ struct SafetyResult {
   bool buzzerRequested = false;
   ActuatorOverride overrideTarget;
 };
+
+struct ActuatorPlan {
+  ActuatorTarget normalTarget;
+  ActuatorTarget finalTarget;
+  SafetyResult safety;
+  bool buzzerMuted = false;
+};
