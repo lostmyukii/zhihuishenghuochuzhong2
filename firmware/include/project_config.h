@@ -7,7 +7,7 @@ constexpr const char* PROJECT_ID = "smartlife-junior-context";
 constexpr const char* PROFILE_ID = "smartlife-junior-context-detective-v1";
 constexpr const char* DEVICE_NAME = "N16R8 无摄像头家庭情境侦探屋";
 constexpr const char* BOARD_ID = "n16r8_esp32s3";
-constexpr const char* FIRMWARE_VERSION = "0.3.2";
+constexpr const char* FIRMWARE_VERSION = "0.3.3-rc1-gpio46-buzzer-diagnostic";
 
 constexpr uint32_t SERIAL_BAUD = 115200;
 
@@ -25,6 +25,7 @@ constexpr uint8_t PIN_SERVO = 9;
 constexpr uint8_t PIN_RELAY = 12;
 constexpr uint8_t PIN_RGB = 46;
 constexpr uint8_t RGB_TEST_OUTPUT_PIN = PIN_RGB;
+constexpr uint8_t BUZZER_TEST_OUTPUT_PIN = PIN_RGB;
 
 constexpr uint32_t FAST_SENSOR_INTERVAL_MS = 200;
 constexpr uint32_t DHT_INTERVAL_MS = 2000;

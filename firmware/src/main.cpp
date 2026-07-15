@@ -65,11 +65,12 @@ ContextMode selectedContextMode() {
 }
 
 void addStageHealth(JsonObject health) {
-  health["stage"] = "stage4-rgb-diagnosis-complete";
+  health["stage"] = "stage4-gpio46-buzzer-diagnostic";
   health["sensorsReady"] = true;
   health["actuatorsArmed"] = ACTUATORS_ARMED;
   health["actuatorsReady"] = false;
   health["buzzerArmed"] = BUZZER_ARMED;
+  health["buzzerTestOutputPin"] = BUZZER_TEST_OUTPUT_PIN;
   health["fanArmed"] = FAN_ARMED;
   health["servoArmed"] = SERVO_ARMED;
   health["relayArmed"] = RELAY_ARMED;
@@ -345,6 +346,7 @@ void emitBuzzerAck(const char* commandId, bool pulseStarted) {
   root["ok"] = true;
   JsonObject applied = root["applied"].to<JsonObject>();
   applied["buzzerOn"] = currentApply.buzzerOn;
+  applied["buzzerOutputPin"] = BUZZER_TEST_OUTPUT_PIN;
   if (pulseStarted) {
     applied["buzzerPulseMs"] = BUZZER_TEST_PULSE_MS;
   }
