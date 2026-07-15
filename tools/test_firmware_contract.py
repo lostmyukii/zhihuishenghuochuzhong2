@@ -76,7 +76,7 @@ class FirmwareContractTests(unittest.TestCase):
         for token in [
             'PROJECT_ID = "smartlife-junior-context"',
             'PROFILE_ID = "smartlife-junior-context-detective-v1"',
-            'FIRMWARE_VERSION = "0.3.3-rc1-gpio46-buzzer-diagnostic"',
+            'FIRMWARE_VERSION = "0.3.2"',
             "SERIAL_BAUD = 115200",
             "FAST_SENSOR_INTERVAL_MS = 200",
             "DHT_INTERVAL_MS = 2000",
@@ -131,7 +131,6 @@ class FirmwareContractTests(unittest.TestCase):
                 self.assertRegex(config, rf"\b{name}\s*=\s*{pin}\s*;")
 
         self.assertIn("RGB_TEST_OUTPUT_PIN = PIN_RGB", config)
-        self.assertIn("BUZZER_TEST_OUTPUT_PIN = PIN_RGB", config)
         self.assertIn("BUZZER_ARMED = true", config)
         self.assertIn("RGB_ARMED = false", config)
 
@@ -155,12 +154,11 @@ class FirmwareContractTests(unittest.TestCase):
             'features["physicalBuzzer"]',
             'features["physicalRgb"]',
             'root["rfid"] = false',
-            'health["stage"] = "stage4-gpio46-buzzer-diagnostic"',
+            'health["stage"] = "stage4-rgb-diagnosis-complete"',
             'health["sensorsReady"] = true',
             'health["actuatorsReady"] = false',
             'health["actuatorsArmed"] = ACTUATORS_ARMED',
             'health["buzzerArmed"] = BUZZER_ARMED',
-            'health["buzzerTestOutputPin"] = BUZZER_TEST_OUTPUT_PIN',
             'health["fanArmed"] = FAN_ARMED',
             'health["servoArmed"] = SERVO_ARMED',
             'health["relayArmed"] = RELAY_ARMED',
@@ -240,10 +238,10 @@ class FirmwareContractTests(unittest.TestCase):
         self.assertIn("BuzzerPulseController", header)
         self.assertIn("RgbPulseController", header)
         self.assertIn("class ActuatorDriver", header)
-        safe_low = source.index("digitalWrite(BUZZER_TEST_OUTPUT_PIN, LOW)")
-        output_mode = source.index("pinMode(BUZZER_TEST_OUTPUT_PIN, OUTPUT)")
+        safe_low = source.index("digitalWrite(PIN_BUZZER, LOW)")
+        output_mode = source.index("pinMode(PIN_BUZZER, OUTPUT)")
         self.assertLess(safe_low, output_mode)
-        self.assertIn("digitalWrite(BUZZER_TEST_OUTPUT_PIN, HIGH)", source)
+        self.assertIn("digitalWrite(PIN_BUZZER, HIGH)", source)
         for token in [
             "Adafruit_NeoPixel",
             "RGB_LED_COUNT",
@@ -384,7 +382,6 @@ class FirmwareContractTests(unittest.TestCase):
             "actuatorDriver.requestRgbTestPulse",
             "actuatorDriver.stopRgb",
             'applied["buzzerPulseMs"] = BUZZER_TEST_PULSE_MS',
-            'applied["buzzerOutputPin"] = BUZZER_TEST_OUTPUT_PIN',
             'applied["rgbPulseMs"] = RGB_TEST_PULSE_MS',
             'applied["rgbBrightness"] = RGB_TEST_BRIGHTNESS',
             'applied["rgbPixels"] = RGB_TEST_ACTIVE_PIXELS',

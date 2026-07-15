@@ -15,8 +15,8 @@ ActuatorApplyResult ActuatorDriver::begin(uint32_t) {
 
   if (BUZZER_ARMED) {
     buzzerPulse_.stop();
-    digitalWrite(BUZZER_TEST_OUTPUT_PIN, LOW);
-    pinMode(BUZZER_TEST_OUTPUT_PIN, OUTPUT);
+    digitalWrite(PIN_BUZZER, LOW);
+    pinMode(PIN_BUZZER, OUTPUT);
     buzzerAvailable_ = true;
   }
 
@@ -44,7 +44,7 @@ ActuatorApplyResult ActuatorDriver::requestBuzzerPulse(uint32_t nowMs) {
     return result();
   }
   buzzerPulse_.requestPulse(nowMs);
-  digitalWrite(BUZZER_TEST_OUTPUT_PIN, HIGH);
+  digitalWrite(PIN_BUZZER, HIGH);
   return result();
 }
 
@@ -53,7 +53,7 @@ ActuatorApplyResult ActuatorDriver::stopBuzzer() {
     return result();
   }
   buzzerPulse_.stop();
-  digitalWrite(BUZZER_TEST_OUTPUT_PIN, LOW);
+  digitalWrite(PIN_BUZZER, LOW);
   return result();
 }
 
@@ -81,7 +81,7 @@ ActuatorApplyResult ActuatorDriver::stopRgb() {
 bool ActuatorDriver::tick(uint32_t nowMs) {
   bool changed = false;
   if (buzzerAvailable_ && buzzerPulse_.tick(nowMs)) {
-    digitalWrite(BUZZER_TEST_OUTPUT_PIN, LOW);
+    digitalWrite(PIN_BUZZER, LOW);
     changed = true;
   }
   if (rgbAvailable_ && rgbPulse_.tick(nowMs)) {
