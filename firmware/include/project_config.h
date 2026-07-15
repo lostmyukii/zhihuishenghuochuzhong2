@@ -7,7 +7,7 @@ constexpr const char* PROJECT_ID = "smartlife-junior-context";
 constexpr const char* PROFILE_ID = "smartlife-junior-context-detective-v1";
 constexpr const char* DEVICE_NAME = "N16R8 无摄像头家庭情境侦探屋";
 constexpr const char* BOARD_ID = "n16r8_esp32s3";
-constexpr const char* FIRMWARE_VERSION = "0.3.1";
+constexpr const char* FIRMWARE_VERSION = "0.3.2-rc1";
 
 constexpr uint32_t SERIAL_BAUD = 115200;
 
@@ -36,6 +36,9 @@ constexpr uint16_t PROVISIONAL_MQ2_ALERT_RAW = 2600;
 constexpr uint16_t PROVISIONAL_MQ2_RECOVERY_RAW = 2400;
 constexpr uint32_t FAST_SAFETY_STALE_MS = 1500;
 constexpr uint32_t BUZZER_TEST_PULSE_MS = 800;
+constexpr uint8_t RGB_LED_COUNT = 12;
+constexpr uint8_t RGB_TEST_BRIGHTNESS = 8;
+constexpr uint32_t RGB_TEST_PULSE_MS = 800;
 
 constexpr uint8_t FAN_LOW_PERCENT = 35;
 constexpr uint8_t FAN_VENTILATION_PERCENT = 70;
@@ -47,7 +50,8 @@ constexpr bool BUZZER_HARDWARE_VERIFIED = true;
 constexpr bool FAN_ARMED = false;
 constexpr bool SERVO_ARMED = false;
 constexpr bool RELAY_ARMED = false;
-constexpr bool RGB_ARMED = false;
+constexpr bool RGB_ARMED = true;
+constexpr bool RGB_HARDWARE_VERIFIED = false;
 
 // Stage-3 starting points only. Real-board calibration must replace these values.
 constexpr uint16_t PROVISIONAL_LIGHT_BRIGHT_RAW = 1800;

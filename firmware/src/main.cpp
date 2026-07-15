@@ -65,7 +65,7 @@ ContextMode selectedContextMode() {
 }
 
 void addStageHealth(JsonObject health) {
-  health["stage"] = "stage4-buzzer-hardware-validation";
+  health["stage"] = "stage4-rgb-hardware-validation";
   health["sensorsReady"] = true;
   health["actuatorsArmed"] = ACTUATORS_ARMED;
   health["actuatorsReady"] = false;
@@ -75,6 +75,7 @@ void addStageHealth(JsonObject health) {
   health["relayArmed"] = RELAY_ARMED;
   health["rgbArmed"] = RGB_ARMED;
   health["buzzerHardwareVerified"] = BUZZER_HARDWARE_VERIFIED;
+  health["rgbHardwareVerified"] = RGB_HARDWARE_VERIFIED;
   health["actuatorApplyState"] = actuatorApplyStateName(currentApply.state);
   health["contextReady"] = true;
   health["safetyReady"] = true;
@@ -113,6 +114,7 @@ void emitHello() {
   features["actuatorPlanning"] = true;
   features["physicalActuators"] = false;
   features["physicalBuzzer"] = ACTUATORS_ARMED && BUZZER_ARMED;
+  features["physicalRgb"] = ACTUATORS_ARMED && RGB_ARMED;
   features["webVoiceIntent"] = true;
   features["localVoiceNlu"] = false;
   features["mcp"] = false;
@@ -268,7 +270,11 @@ void emitTelemetry() {
   } else {
     actuators["buzzerOn"] = nullptr;
   }
-  actuators["rgbState"] = nullptr;
+  if (currentApply.rgbAvailable) {
+    actuators["rgbState"] = rgbStateName(currentApply.rgbState);
+  } else {
+    actuators["rgbState"] = nullptr;
+  }
 
   JsonArray alerts = root["alerts"].to<JsonArray>();
   addSafetyCauses(alerts, currentSafety.causes, false);
@@ -340,6 +346,23 @@ void emitBuzzerAck(const char* commandId, bool pulseStarted) {
   applied["buzzerOn"] = currentApply.buzzerOn;
   if (pulseStarted) {
     applied["buzzerPulseMs"] = BUZZER_TEST_PULSE_MS;
+  }
+  writeJsonLine(document);
+}
+
+void emitRgbAck(const char* commandId, bool pulseStarted) {
+  JsonDocument document;
+  JsonObject root = document.to<JsonObject>();
+  root["type"] = "ack";
+  root["project"] = PROJECT_ID;
+  root["id"] = commandId;
+  root["ok"] = true;
+  JsonObject applied = root["applied"].to<JsonObject>();
+  applied["rgbState"] = rgbStateName(currentApply.rgbState);
+  if (pulseStarted) {
+    applied["rgbPulseMs"] = RGB_TEST_PULSE_MS;
+    applied["rgbBrightness"] = RGB_TEST_BRIGHTNESS;
+    applied["rgbPixels"] = RGB_LED_COUNT;
   }
   writeJsonLine(document);
 }
@@ -446,6 +469,26 @@ void handleCommandLine(const String& line) {
       currentApply = actuatorDriver.stopBuzzer();
     }
     emitBuzzerAck(commandId, pulseRequested);
+    emitTelemetry();
+    lastTelemetryAt = millis();
+    return;
+  }
+  if (!actuator["rgb"].isNull()) {
+    if (!RGB_ARMED) {
+      emitAck(commandId, false, "actuators_unarmed");
+      return;
+    }
+    const char* requestedState = actuator["rgb"].as<const char*>();
+    const bool pulseRequested = strcmp(requestedState, "cyan") == 0;
+    if (pulseRequested) {
+      currentApply = actuatorDriver.requestRgbTestPulse(millis());
+    } else if (strcmp(requestedState, "off") == 0) {
+      currentApply = actuatorDriver.stopRgb();
+    } else {
+      emitAck(commandId, false, "rgb_test_state_only");
+      return;
+    }
+    emitRgbAck(commandId, pulseRequested);
     emitTelemetry();
     lastTelemetryAt = millis();
     return;

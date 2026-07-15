@@ -151,8 +151,11 @@
     const simulated = telemetry.mock === true || health.actuatorApplyState === "simulated";
     const unarmed = !simulated && health.actuatorApplyState === "unarmed";
     const partialBuzzer = !simulated && health.actuatorApplyState === "partial-buzzer-test";
+    const partialBuzzerRgb = !simulated && health.actuatorApplyState === "partial-buzzer-rgb-test";
     const actualPrefix = simulated ? "模拟执行" : "实际";
-    const actualValue = (key) => unarmed || (partialBuzzer && key !== "buzzer")
+    const actualValue = (key) => unarmed ||
+      (partialBuzzer && key !== "buzzer") ||
+      (partialBuzzerRgb && key !== "buzzer" && key !== "rgb")
       ? "未武装/未应用"
       : actuators[key];
     const row = (key) => `计划：${targets[key]} / ${actualPrefix}：${actualValue(key)}`;
@@ -169,7 +172,9 @@
           ? "执行器未武装"
           : partialBuzzer
             ? "仅蜂鸣器测试已武装"
-            : "实际状态",
+            : partialBuzzerRgb
+              ? "蜂鸣器与RGB测试已武装"
+              : "实际状态",
       calibrationRequired: health.calibrationRequired === true || health.hardwareVerified === false,
     };
   }

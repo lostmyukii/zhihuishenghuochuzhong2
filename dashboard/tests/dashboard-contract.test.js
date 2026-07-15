@@ -56,6 +56,7 @@ test("stage four dashboard separates targets, mock execution and physical truth"
   assert.match(source, /未武装\/未应用/);
   assert.match(source, /Mock模拟执行/);
   assert.match(contextCore, /仅蜂鸣器测试已武装/);
+  assert.match(contextCore, /蜂鸣器与RGB测试已武装/);
   assert.match(source, /calibration-status/);
   assert.doesNotMatch(html, /真板在线/);
 });

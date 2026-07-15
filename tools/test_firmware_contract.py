@@ -24,6 +24,8 @@ DRIVER_HEADER = FIRMWARE / "include" / "actuator_driver.h"
 DRIVER_CPP = FIRMWARE / "src" / "actuator_driver.cpp"
 BUZZER_CONTROLLER_HEADER = FIRMWARE / "include" / "buzzer_pulse_controller.h"
 BUZZER_CONTROLLER_CPP = FIRMWARE / "src" / "buzzer_pulse_controller.cpp"
+RGB_CONTROLLER_HEADER = FIRMWARE / "include" / "rgb_pulse_controller.h"
+RGB_CONTROLLER_CPP = FIRMWARE / "src" / "rgb_pulse_controller.cpp"
 
 
 class FirmwareContractTests(unittest.TestCase):
@@ -74,7 +76,7 @@ class FirmwareContractTests(unittest.TestCase):
         for token in [
             'PROJECT_ID = "smartlife-junior-context"',
             'PROFILE_ID = "smartlife-junior-context-detective-v1"',
-            'FIRMWARE_VERSION = "0.3.1"',
+            'FIRMWARE_VERSION = "0.3.2-rc1"',
             "SERIAL_BAUD = 115200",
             "FAST_SENSOR_INTERVAL_MS = 200",
             "DHT_INTERVAL_MS = 2000",
@@ -90,13 +92,17 @@ class FirmwareContractTests(unittest.TestCase):
             "FAN_VENTILATION_PERCENT = 70",
             "FAN_ALERT_PERCENT = 100",
             "BUZZER_TEST_PULSE_MS = 800",
+            "RGB_LED_COUNT = 12",
+            "RGB_TEST_BRIGHTNESS = 8",
+            "RGB_TEST_PULSE_MS = 800",
             "ACTUATORS_ARMED = true",
             "BUZZER_ARMED = true",
             "BUZZER_HARDWARE_VERIFIED = true",
             "FAN_ARMED = false",
             "SERVO_ARMED = false",
             "RELAY_ARMED = false",
-            "RGB_ARMED = false",
+            "RGB_ARMED = true",
+            "RGB_HARDWARE_VERIFIED = false",
             "CONTEXT_MIN_COVERAGE = 70",
             "CONTEXT_MATCH_THRESHOLD = 65",
             "CONTEXT_AMBIGUITY_GAP = 8",
@@ -141,8 +147,9 @@ class FirmwareContractTests(unittest.TestCase):
             'features["actuatorPlanning"] = true',
             'features["physicalActuators"] = false',
             'features["physicalBuzzer"]',
+            'features["physicalRgb"]',
             'root["rfid"] = false',
-            'health["stage"] = "stage4-buzzer-hardware-validation"',
+            'health["stage"] = "stage4-rgb-hardware-validation"',
             'health["sensorsReady"] = true',
             'health["actuatorsReady"] = false',
             'health["actuatorsArmed"] = ACTUATORS_ARMED',
@@ -152,6 +159,7 @@ class FirmwareContractTests(unittest.TestCase):
             'health["relayArmed"] = RELAY_ARMED',
             'health["rgbArmed"] = RGB_ARMED',
             'health["buzzerHardwareVerified"] = BUZZER_HARDWARE_VERIFIED',
+            'health["rgbHardwareVerified"] = RGB_HARDWARE_VERIFIED',
             'health["actuatorApplyState"] = actuatorApplyStateName(currentApply.state)',
             'health["contextReady"] = true',
             'health["safetyReady"] = true',
@@ -161,6 +169,7 @@ class FirmwareContractTests(unittest.TestCase):
             '"unsupported_command"',
             '"invalid_actuator_command"',
             '"actuators_unarmed"',
+            '"rgb_test_state_only"',
         ]:
             with self.subTest(token=token):
                 self.assertIn(token, source)
@@ -196,6 +205,8 @@ class FirmwareContractTests(unittest.TestCase):
             DRIVER_CPP,
             BUZZER_CONTROLLER_HEADER,
             BUZZER_CONTROLLER_CPP,
+            RGB_CONTROLLER_HEADER,
+            RGB_CONTROLLER_CPP,
         ]:
             self.read_required(path)
 
@@ -211,26 +222,40 @@ class FirmwareContractTests(unittest.TestCase):
         self.assertIn("actuatorPlanner.plan", main)
         self.assertIn("actuatorDriver.apply", main)
 
-    def test_actuator_driver_only_arms_gpio13_with_safe_boot_order(self):
+    def test_actuator_driver_only_arms_buzzer_and_rgb_with_safe_boot_order(self):
         source = self.read_required(DRIVER_CPP)
         header = self.read_required(DRIVER_HEADER)
 
         self.assertIn("ACTUATORS_ARMED", source)
         self.assertIn("BUZZER_ARMED", source)
+        self.assertIn("RGB_ARMED", source)
         self.assertIn("BuzzerPulseController", header)
+        self.assertIn("RgbPulseController", header)
         self.assertIn("class ActuatorDriver", header)
         safe_low = source.index("digitalWrite(PIN_BUZZER, LOW)")
         output_mode = source.index("pinMode(PIN_BUZZER, OUTPUT)")
         self.assertLess(safe_low, output_mode)
         self.assertIn("digitalWrite(PIN_BUZZER, HIGH)", source)
-        for forbidden_pin in ["PIN_FAN", "PIN_SERVO", "PIN_RELAY", "PIN_RGB"]:
+        for token in [
+            "Adafruit_NeoPixel",
+            "RGB_LED_COUNT",
+            "PIN_RGB",
+            "NEO_GRB + NEO_KHZ800",
+            "setBrightness(RGB_TEST_BRIGHTNESS)",
+            "rgbPixels_.begin()",
+            "rgbPixels_.clear()",
+            "rgbPixels_.show()",
+            "rgbPixels_.Color(0, 255, 255)",
+        ]:
+            with self.subTest(token=token):
+                self.assertIn(token, source + header)
+        for forbidden_pin in ["PIN_FAN", "PIN_SERVO", "PIN_RELAY"]:
             with self.subTest(forbidden_pin=forbidden_pin):
                 self.assertNotIn(forbidden_pin, source)
         for forbidden in [
             "ledcWrite(",
             ".attach(",
-            "Adafruit_NeoPixel",
-            ".show(",
+            "delay(800)",
         ]:
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
@@ -318,7 +343,7 @@ class FirmwareContractTests(unittest.TestCase):
             'actuators["servoAngle"] = nullptr',
             'actuators["relayOn"] = nullptr',
             'actuators["buzzerOn"] = currentApply.buzzerOn',
-            'actuators["rgbState"] = nullptr',
+            'actuators["rgbState"] = rgbStateName(currentApply.rgbState)',
         ]:
             with self.subTest(token=token):
                 self.assertIn(token, source)
@@ -347,7 +372,13 @@ class FirmwareContractTests(unittest.TestCase):
             'root["id"] = nullptr',
             "actuatorDriver.requestBuzzerPulse",
             "actuatorDriver.stopBuzzer",
+            "actuatorDriver.requestRgbTestPulse",
+            "actuatorDriver.stopRgb",
             'applied["buzzerPulseMs"] = BUZZER_TEST_PULSE_MS',
+            'applied["rgbPulseMs"] = RGB_TEST_PULSE_MS',
+            'applied["rgbBrightness"] = RGB_TEST_BRIGHTNESS',
+            'applied["rgbPixels"] = RGB_LED_COUNT',
+            '"rgb_test_state_only"',
         ]:
             with self.subTest(token=token):
                 self.assertIn(token, source)

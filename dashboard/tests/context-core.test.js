@@ -137,6 +137,33 @@ test("partial buzzer validation reports the pulse without inferring other output
   assert.equal(view.fan, "计划：未知 / 实际：未武装/未应用");
 });
 
+test("partial buzzer and RGB validation exposes only GPIO13 and GPIO46 truth", () => {
+  const telemetry = core.normalizeTelemetry({
+    type: "telemetry",
+    project: "smartlife-junior-context",
+    actuatorTargets: {fanPercent: 70, servoPosition: "rest", relayOn: false, buzzerMode: "off", rgbState: "red"},
+    actuators: {fanPercent: null, servoAngle: null, relayOn: null, buzzerOn: false, rgbState: "cyan"},
+    health: {
+      actuatorApplyState: "partial-buzzer-rgb-test",
+      buzzerArmed: true,
+      rgbArmed: true,
+      fanArmed: false,
+      servoArmed: false,
+      relayArmed: false,
+      hardwareVerified: false,
+    },
+  });
+  const view = core.actuatorPresentation(telemetry);
+
+  assert.equal(view.applyLabel, "蜂鸣器与RGB测试已武装");
+  assert.equal(view.fan, "计划：70% / 实际：未武装/未应用");
+  assert.equal(view.servo, "计划：休息位置 / 实际：未武装/未应用");
+  assert.equal(view.relay, "计划：关闭 / 实际：未武装/未应用");
+  assert.equal(view.buzzer, "计划：关闭 / 实际：关闭");
+  assert.equal(view.rgb, "计划：红色 / 实际：青色");
+  assert.equal(view.calibrationRequired, true);
+});
+
 test("safety sensor faults have an explicit Chinese label", () => {
   assert.equal(core.alertLabel("safety_sensor_fault"), "安全传感器数据异常");
 });
