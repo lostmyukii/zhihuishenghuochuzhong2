@@ -408,8 +408,9 @@ class FirmwareContractTests(unittest.TestCase):
         agents = self.read_required(ROOT / "AGENTS.md")
         ignore = self.read_required(ROOT / ".gitignore")
 
-        self.assertIn("当前只允许契约测试、`pio run`纯编译", agents)
-        self.assertIn("用户再次明确授权前", agents)
+        self.assertIn("当前默认回到契约测试、`pio run`纯编译", agents)
+        self.assertIn("下一次真板控制或再次写入仍需用户明确授权", agents)
+        self.assertIn("verify OK (digest matched)", agents)
         for token in ["firmware/.pio/", ".env.*", "*.bin", "n16r8-private-backups/"]:
             with self.subTest(token=token):
                 self.assertIn(token, ignore)
