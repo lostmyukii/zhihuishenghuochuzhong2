@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" role="img" aria-labelledby="title desc">
+  <title id="title">N16R8 无摄像头家庭情境侦探屋 Dashboard 布局概念图</title>
+  <desc id="desc">按真实采集、情境推理、控制来源、联动结果和事件记录组织的评委演示优先布局。</desc>
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M 24 0 L 0 0 0 24" fill="none" stroke="#10243E" stroke-opacity="0.035" stroke-width="1"/>
+    </pattern>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="8" flood-color="#10243E" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .display { font-family: "Songti SC", "STSong", serif; fill: #10243E; }
+      .body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; fill: #10243E; }
+      .mono { font-family: "SFMono-Regular", "JetBrains Mono", monospace; fill: #10243E; }
+      .small { font-size: 12px; }
+      .label { font-size: 13px; font-weight: 600; }
+      .card { fill: #FFFFFF; stroke: #10243E; stroke-opacity: .12; stroke-width: 1; }
+      .soft { fill: #F4F7FA; stroke: #10243E; stroke-opacity: .10; stroke-width: 1; }
+      .teal { fill: #0A9A91; }
+      .green { fill: #278866; }
+      .amber { fill: #D58B26; }
+      .red { fill: #C84C4C; }
+      .muted { fill: #10243E; fill-opacity: .58; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1100" fill="#F4F7FA"/>
+  <rect width="1600" height="1100" fill="url(#grid)"/>
+
+  <!-- Header -->
+  <rect x="22" y="20" width="1556" height="76" rx="18" class="card" filter="url(#shadow)"/>
+  <rect x="42" y="36" width="44" height="44" rx="12" fill="#0A9A91"/>
+  <path d="M55 59 L64 50 L73 59 V70 H55 Z M61 70 V62 H67 V70" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="102" y="48" class="body small muted">无摄像头 · 非录音 · 多源环境证据</text>
+  <text x="102" y="76" class="display" font-size="24" font-weight="700">N16R8 无摄像头家庭情境侦探屋</text>
+
+  <g class="body" font-size="14" font-weight="600">
+    <rect x="760" y="38" width="102" height="40" rx="12" fill="#0A9A91" fill-opacity=".13" stroke="#0A9A91"/>
+    <text x="811" y="63" text-anchor="middle" fill="#0A9A91">侦探总览</text>
+    <text x="909" y="63" text-anchor="middle">设备注册</text>
+    <text x="1017" y="63" text-anchor="middle">情境联动</text>
+    <text x="1125" y="63" text-anchor="middle">网页语音</text>
+    <text x="1233" y="63" text-anchor="middle">调试台</text>
+    <text x="1341" y="63" text-anchor="middle">数据日志</text>
+  </g>
+
+  <!-- Truth strip -->
+  <rect x="22" y="108" width="1556" height="56" rx="14" fill="#10243E"/>
+  <g class="body" font-size="12" fill="#FFFFFF">
+    <g transform="translate(46 126)"><circle cx="6" cy="8" r="5" fill="#278866"/><text x="18" y="12" fill="#FFFFFF">开发板</text><text x="76" y="12" fill="#9FE0C5" font-weight="700">真板在线</text></g>
+    <g transform="translate(234 126)"><circle cx="6" cy="8" r="5" fill="#278866"/><text x="18" y="12" fill="#FFFFFF">Web Serial</text><text x="98" y="12" fill="#9FE0C5" font-weight="700">已连接</text></g>
+    <g transform="translate(446 126)"><circle cx="6" cy="8" r="5" fill="#D58B26"/><text x="18" y="12" fill="#FFFFFF">WebSocket</text><text x="98" y="12" fill="#F3C77C" font-weight="700">备用</text></g>
+    <g transform="translate(648 126)"><circle cx="6" cy="8" r="5" fill="#D58B26"/><text x="18" y="12" fill="#FFFFFF">MQTT</text><text x="62" y="12" fill="#F3C77C" font-weight="700">后续接入</text></g>
+    <g transform="translate(834 126)"><circle cx="6" cy="8" r="5" fill="#0A9A91"/><text x="18" y="12" fill="#FFFFFF">数据源</text><text x="74" y="12" fill="#7FE0D8" font-weight="700">真板</text></g>
+    <g transform="translate(1014 126)"><circle cx="6" cy="8" r="5" fill="#0A9A91"/><text x="18" y="12" fill="#FFFFFF">当前情境</text><text x="88" y="12" fill="#7FE0D8" font-weight="700">专注学习</text></g>
+    <g transform="translate(1250 126)"><text x="0" y="12" fill="#FFFFFF" fill-opacity=".62">最后遥测</text><text x="72" y="12" fill="#FFFFFF" font-weight="700">0.2 秒前</text></g>
+  </g>
+
+  <!-- Evidence rail signature -->
+  <g transform="translate(70 194)">
+    <line x1="38" y1="0" x2="1416" y2="0" stroke="#0A9A91" stroke-width="3" stroke-opacity=".35"/>
+    <g class="body" font-size="12" font-weight="700">
+      <g transform="translate(38 0)"><circle r="17" fill="#0A9A91"/><text y="4" text-anchor="middle" fill="#FFFFFF">1</text><text y="35" text-anchor="middle">真实采集</text></g>
+      <g transform="translate(392 0)"><circle r="17" fill="#0A9A91"/><text y="4" text-anchor="middle" fill="#FFFFFF">2</text><text y="35" text-anchor="middle">情境推理</text></g>
+      <g transform="translate(746 0)"><circle r="17" fill="#0A9A91"/><text y="4" text-anchor="middle" fill="#FFFFFF">3</text><text y="35" text-anchor="middle">控制来源</text></g>
+      <g transform="translate(1098 0)"><circle r="17" fill="#D58B26"/><text y="4" text-anchor="middle" fill="#FFFFFF">4</text><text y="35" text-anchor="middle">联动结果</text></g>
+      <g transform="translate(1416 0)"><circle r="17" fill="#10243E"/><text y="4" text-anchor="middle" fill="#FFFFFF">5</text><text y="35" text-anchor="middle">事件记录</text></g>
+    </g>
+  </g>
+
+  <!-- Main left: sensors -->
+  <rect x="22" y="246" width="296" height="574" rx="18" class="card" filter="url(#shadow)"/>
+  <text x="44" y="278" class="body small" fill="#0A9A91" font-weight="700" letter-spacing="1.5">LIVE CLUES</text>
+  <text x="44" y="310" class="display" font-size="23" font-weight="700">真实采集</text>
+  <text x="44" y="334" class="body small muted">数据名称 · 真实单位 · 有效性 · 新鲜度</text>
+
+  <g transform="translate(42 354)">
+    <rect width="114" height="92" rx="13" fill="#0A9A91" fill-opacity=".08" stroke="#0A9A91" stroke-opacity=".5"/>
+    <text x="12" y="22" class="body small muted">温度 · GPIO14</text><text x="12" y="52" class="mono" font-size="22" font-weight="700">24.6°C</text><text x="12" y="76" class="body small" fill="#278866">有效 · 0.2s</text>
+  </g>
+  <g transform="translate(174 354)">
+    <rect width="114" height="92" rx="13" fill="#0A9A91" fill-opacity=".08" stroke="#0A9A91" stroke-opacity=".5"/>
+    <text x="12" y="22" class="body small muted">湿度 · GPIO14</text><text x="12" y="52" class="mono" font-size="22" font-weight="700">51%RH</text><text x="12" y="76" class="body small" fill="#278866">有效 · 0.2s</text>
+  </g>
+  <g transform="translate(42 462)">
+    <rect width="114" height="92" rx="13" class="soft"/>
+    <text x="12" y="22" class="body small muted">声音 · GPIO4</text><text x="12" y="52" class="mono" font-size="22" font-weight="700">125</text><text x="12" y="76" class="body small muted">相对强度</text>
+  </g>
+  <g transform="translate(174 462)">
+    <rect width="114" height="92" rx="13" class="soft"/>
+    <text x="12" y="22" class="body small muted">PIR · GPIO5</text><text x="12" y="52" class="display" font-size="22" font-weight="700">有人</text><text x="12" y="76" class="body small" fill="#278866">有效 · 0.2s</text>
+  </g>
+  <g transform="translate(42 572)" class="body">
+    <rect width="246" height="52" rx="11" class="soft"/><text x="14" y="22" class="small muted">光照 · GPIO1</text><text x="232" y="23" text-anchor="end" class="mono" font-size="16" font-weight="700">520 ADC</text><text x="14" y="40" class="small" fill="#278866">有效</text>
+    <rect y="64" width="246" height="52" rx="11" class="soft"/><text x="14" y="86" class="small muted">MQ2 · GPIO2</text><text x="232" y="87" text-anchor="end" class="mono" font-size="16" font-weight="700">380 ADC</text><text x="14" y="104" class="small" fill="#D58B26">原始值 · 预热完成</text>
+    <rect y="128" width="118" height="52" rx="11" class="soft"/><text x="12" y="149" class="small muted">水滴 · GPIO8</text><text x="12" y="169" class="body label" fill="#278866">正常 · 有效</text>
+    <rect x="128" y="128" width="118" height="52" rx="11" class="soft"/><text x="140" y="149" class="small muted">火焰 · GPIO45</text><text x="140" y="169" class="body label" fill="#278866">正常 · 有效</text>
+  </g>
+  <rect x="42" y="772" width="246" height="28" rx="8" fill="#278866" fill-opacity=".12"/>
+  <text x="165" y="791" class="body small" text-anchor="middle" fill="#278866" font-weight="700">9 / 9 输入通道有效</text>
+
+  <!-- Center: reasoning -->
+  <rect x="334" y="246" width="640" height="574" rx="18" class="card" filter="url(#shadow)"/>
+  <text x="356" y="278" class="body small" fill="#0A9A91" font-weight="700" letter-spacing="1.5">EXPLAINABLE REASONING</text>
+  <text x="356" y="310" class="display" font-size="23" font-weight="700">情境推理</text>
+  <g class="body">
+    <rect x="764" y="270" width="86" height="34" rx="10" fill="#0A9A91" fill-opacity=".12"/><text x="807" y="292" text-anchor="middle" class="small" fill="#0A9A91" font-weight="700">覆盖 78%</text>
+    <rect x="858" y="270" width="94" height="34" rx="10" fill="#10243E" fill-opacity=".06"/><text x="905" y="292" text-anchor="middle" class="small" font-weight="700">匹配 65%</text>
+  </g>
+  <rect x="356" y="334" width="596" height="306" rx="16" fill="#F4F7FA" stroke="#0A9A91" stroke-opacity=".32"/>
+  <!-- House rooms -->
+  <g class="body" font-size="12">
+    <rect x="380" y="360" width="150" height="100" rx="12" fill="#FFFFFF" stroke="#10243E" stroke-opacity=".12"/><text x="396" y="386" font-weight="700">书房</text><text x="396" y="410" class="muted">光照 · 声音</text><text x="396" y="438" class="mono small">GPIO1 / 4</text>
+    <rect x="542" y="360" width="186" height="100" rx="12" fill="#FFFFFF" stroke="#10243E" stroke-opacity=".12"/><text x="558" y="386" font-weight="700">客厅</text><text x="558" y="410" class="muted">温湿度 · 按键</text><text x="558" y="438" class="mono small">GPIO14 / 10</text>
+    <rect x="740" y="360" width="188" height="100" rx="12" fill="#FFFFFF" stroke="#10243E" stroke-opacity=".12"/><text x="756" y="386" font-weight="700">厨房</text><text x="756" y="410" class="muted">MQ2 · 火焰</text><text x="756" y="438" class="mono small">GPIO2 / 45</text>
+    <rect x="380" y="472" width="150" height="136" rx="12" fill="#FFFFFF" stroke="#10243E" stroke-opacity=".12"/><text x="396" y="498" font-weight="700">门厅</text><text x="396" y="522" class="muted">PIR 人体</text><text x="396" y="550" class="mono small">GPIO5</text>
+    <rect x="542" y="472" width="186" height="136" rx="12" fill="#0A9A91" fill-opacity=".08" stroke="#0A9A91" stroke-width="2"/><text x="635" y="505" text-anchor="middle" fill="#0A9A91" font-weight="700">当前判断</text><text x="635" y="546" text-anchor="middle" class="display" font-size="26" font-weight="700">专注学习</text><rect x="584" y="565" width="102" height="26" rx="8" fill="#D58B26" fill-opacity=".16"/><text x="635" y="583" text-anchor="middle" fill="#D58B26" font-weight="700">状态：待确认</text>
+    <rect x="740" y="472" width="92" height="136" rx="12" fill="#FFFFFF" stroke="#10243E" stroke-opacity=".12"/><text x="756" y="498" font-weight="700">卫生间</text><text x="756" y="522" class="muted">水滴</text><text x="756" y="550" class="mono small">GPIO8</text>
+    <rect x="842" y="472" width="86" height="136" rx="12" fill="#FFFFFF" stroke="#10243E" stroke-opacity=".12"/><text x="858" y="498" font-weight="700">卧室</text><text x="858" y="522" class="muted">RGB</text><text x="858" y="550" class="mono small">GPIO46</text>
+  </g>
+  <!-- Evidence lines -->
+  <g fill="none" stroke="#0A9A91" stroke-opacity=".55" stroke-width="2">
+    <path d="M530 410 C570 410 574 485 605 510"/><path d="M635 460 V500"/><path d="M740 410 C700 410 697 485 666 510"/><path d="M530 535 C565 535 580 535 595 535"/><path d="M740 535 H686"/>
+  </g>
+  <g transform="translate(356 656)" class="body">
+    <rect width="184" height="138" rx="13" fill="#278866" fill-opacity=".08" stroke="#278866" stroke-opacity=".45"/><text x="14" y="26" font-size="14" font-weight="700" fill="#278866">支持证据</text><text x="14" y="53" class="small">• 有人且光照稳定</text><text x="14" y="76" class="small">• 温湿度有效</text><text x="14" y="99" class="small">• 安全输入正常</text>
+    <rect x="198" width="184" height="138" rx="13" fill="#C84C4C" fill-opacity=".06" stroke="#C84C4C" stroke-opacity=".35"/><text x="212" y="26" font-size="14" font-weight="700" fill="#C84C4C">反向证据</text><text x="212" y="53" class="small">• 声音偏高</text><text x="212" y="76" class="small">• 活动持续性不足</text>
+    <rect x="396" width="200" height="138" rx="13" fill="#D58B26" fill-opacity=".08" stroke="#D58B26" stroke-opacity=".45"/><text x="410" y="26" font-size="14" font-weight="700" fill="#D58B26">缺失证据</text><text x="410" y="53" class="small">• 等待用户确认</text><text x="410" y="76" class="small">• 需要更多时间窗</text><text x="410" y="111" class="small muted">不强行下结论</text>
+  </g>
+
+  <!-- Right: controls and outcomes -->
+  <rect x="990" y="246" width="588" height="574" rx="18" class="card" filter="url(#shadow)"/>
+  <text x="1012" y="278" class="body small" fill="#0A9A91" font-weight="700" letter-spacing="1.5">CONTROL → ACTUAL</text>
+  <text x="1012" y="310" class="display" font-size="23" font-weight="700">控制来源与联动结果</text>
+  <g transform="translate(1012 334)" class="body">
+    <rect width="170" height="112" rx="13" class="soft"/><text x="14" y="26" font-size="14" font-weight="700">8键 AD</text><text x="14" y="50" class="small muted">最近：键3 / 学习</text><text x="14" y="76" class="mono small">id: key-031</text><text x="14" y="98" class="small" fill="#278866">ACK 已确认</text>
+    <rect x="186" width="170" height="112" rx="13" class="soft"/><text x="200" y="26" font-size="14" font-weight="700">网页控制</text><text x="200" y="50" class="small muted">模式：专注学习</text><text x="200" y="76" class="mono small">id: web-114</text><text x="200" y="98" class="small" fill="#278866">ACK 已确认</text>
+    <rect x="372" width="182" height="112" rx="13" fill="#0A9A91" fill-opacity=".08" stroke="#0A9A91" stroke-opacity=".45"/><text x="386" y="26" font-size="14" font-weight="700">网页语义</text><text x="386" y="49" class="small muted">“我要专心写作业”</text><text x="386" y="72" class="small">→ 切换专注学习</text><text x="386" y="98" class="small" fill="#278866">白名单 · ACK</text>
+  </g>
+  <text x="1012" y="474" class="body label">计划动作与真实状态必须分栏</text>
+  <g transform="translate(1012 490)" class="body">
+    <rect width="554" height="46" rx="10" class="soft"/><text x="14" y="28" class="label">风扇 · GPIO11</text><text x="190" y="28" class="small muted">计划 50%</text><text x="314" y="28" class="small" font-weight="700">真实 0%</text><rect x="438" y="10" width="102" height="26" rx="8" fill="#D58B26" fill-opacity=".15"/><text x="489" y="28" text-anchor="middle" class="small" fill="#D58B26" font-weight="700">待实物验收</text>
+    <rect y="54" width="554" height="46" rx="10" class="soft"/><text x="14" y="82" class="label">舵机 · GPIO9</text><text x="190" y="82" class="small muted">计划 90°</text><text x="314" y="82" class="small" font-weight="700">真实 0°</text><rect x="438" y="64" width="102" height="26" rx="8" fill="#D58B26" fill-opacity=".15"/><text x="489" y="82" text-anchor="middle" class="small" fill="#D58B26" font-weight="700">待实物验收</text>
+    <rect y="108" width="554" height="46" rx="10" class="soft"/><text x="14" y="136" class="label">继电器LED · GPIO12</text><text x="190" y="136" class="small muted">计划 开</text><text x="314" y="136" class="small" font-weight="700">真实 关</text><rect x="438" y="118" width="102" height="26" rx="8" fill="#D58B26" fill-opacity=".15"/><text x="489" y="136" text-anchor="middle" class="small" fill="#D58B26" font-weight="700">待实物验收</text>
+    <rect y="162" width="554" height="46" rx="10" class="soft"/><text x="14" y="190" class="label">蜂鸣器 · GPIO13</text><text x="190" y="190" class="small muted">计划 关闭</text><text x="314" y="190" class="small" font-weight="700">真实 关闭</text><rect x="438" y="172" width="102" height="26" rx="8" fill="#278866" fill-opacity=".15"/><text x="489" y="190" text-anchor="middle" class="small" fill="#278866" font-weight="700">已单项验证</text>
+    <rect y="216" width="554" height="46" rx="10" class="soft"/><text x="14" y="244" class="label">RGB灯环 · GPIO46</text><text x="190" y="244" class="small muted">计划 青色</text><text x="314" y="244" class="small" font-weight="700">真实 关闭</text><rect x="438" y="226" width="102" height="26" rx="8" fill="#D58B26" fill-opacity=".15"/><text x="489" y="244" text-anchor="middle" class="small" fill="#D58B26" font-weight="700">待实物验收</text>
+  </g>
+  <rect x="1012" y="770" width="554" height="30" rx="9" fill="#10243E"/>
+  <text x="1028" y="790" class="mono small" style="fill:#FFFFFF">23:08:12 · web-114 · mode.study · ack ok · actual pending verification</text>
+
+  <!-- Workbench preview -->
+  <rect x="22" y="840" width="1556" height="230" rx="18" class="card" filter="url(#shadow)"/>
+  <text x="44" y="873" class="body small" fill="#0A9A91" font-weight="700" letter-spacing="1.5">COMPLETE WORKBENCH</text>
+  <text x="44" y="905" class="display" font-size="23" font-weight="700">完整工作台</text>
+  <text x="252" y="903" class="body small muted">参考站能力完整保留，按本项目身份重新组织</text>
+  <g transform="translate(44 928)" class="body">
+    <g><rect width="238" height="116" rx="14" fill="#0A9A91" fill-opacity=".08" stroke="#0A9A91"/><text x="16" y="28" font-size="15" font-weight="700">设备注册</text><text x="16" y="53" class="small muted">13模块 · GPIO · 房间</text><text x="16" y="76" class="small muted">场景绑定 · 本地保存</text><text x="16" y="100" class="small" fill="#0A9A91" font-weight="700">打开工作台 →</text></g>
+    <g transform="translate(254)"><rect width="238" height="116" rx="14" class="soft"/><text x="16" y="28" font-size="15" font-weight="700">情境联动</text><text x="16" y="53" class="small muted">六种模式 · 规则解释</text><text x="16" y="76" class="small muted">阈值调整 · 安全覆盖</text><text x="16" y="100" class="small" fill="#0A9A91" font-weight="700">打开工作台 →</text></g>
+    <g transform="translate(508)"><rect width="238" height="116" rx="14" class="soft"/><text x="16" y="28" font-size="15" font-weight="700">网页语音</text><text x="16" y="53" class="small muted">麦克风授权 · 文本测试</text><text x="16" y="76" class="small muted">白名单 · 规则降级</text><text x="16" y="100" class="small" fill="#0A9A91" font-weight="700">打开工作台 →</text></g>
+    <g transform="translate(762)"><rect width="238" height="116" rx="14" class="soft"/><text x="16" y="28" font-size="15" font-weight="700">调试台</text><text x="16" y="53" class="small muted">五类低压执行器</text><text x="16" y="76" class="small muted">单项授权 · 安全恢复</text><text x="16" y="100" class="small" fill="#0A9A91" font-weight="700">打开工作台 →</text></g>
+    <g transform="translate(1016)"><rect width="238" height="116" rx="14" class="soft"/><text x="16" y="28" font-size="15" font-weight="700">数据日志</text><text x="16" y="53" class="small muted">趋势 · 过滤 · 事件时间轴</text><text x="16" y="76" class="small muted">命令ID · ACK · 导出</text><text x="16" y="100" class="small" fill="#0A9A91" font-weight="700">打开工作台 →</text></g>
+    <g transform="translate(1270)"><rect width="238" height="116" rx="14" class="soft"/><text x="16" y="28" font-size="15" font-weight="700">连接中心</text><text x="16" y="53" class="small muted">Web Serial 主链路</text><text x="16" y="76" class="small muted">WebSocket备用 · MQTT未来</text><text x="16" y="100" class="small" fill="#0A9A91" font-weight="700">打开工作台 →</text></g>
+  </g>
+</svg>
