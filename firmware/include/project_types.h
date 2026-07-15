@@ -68,6 +68,7 @@ enum class ActuatorApplyState : uint8_t {
   Unarmed,
   PartialBuzzerTest,
   PartialBuzzerRgbTest,
+  PartialRgbDiagnostic,
 };
 
 struct SensorSample {

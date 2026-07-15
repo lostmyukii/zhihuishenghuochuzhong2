@@ -76,7 +76,7 @@ class FirmwareContractTests(unittest.TestCase):
         for token in [
             'PROJECT_ID = "smartlife-junior-context"',
             'PROFILE_ID = "smartlife-junior-context-detective-v1"',
-            'FIRMWARE_VERSION = "0.3.2-rc3"',
+            'FIRMWARE_VERSION = "0.3.2-rc4-pin13-diagnostic"',
             "SERIAL_BAUD = 115200",
             "FAST_SENSOR_INTERVAL_MS = 200",
             "DHT_INTERVAL_MS = 2000",
@@ -97,7 +97,7 @@ class FirmwareContractTests(unittest.TestCase):
             "RGB_TEST_BRIGHTNESS = 128",
             "RGB_TEST_PULSE_MS = 5000",
             "ACTUATORS_ARMED = true",
-            "BUZZER_ARMED = true",
+            "BUZZER_ARMED = false",
             "BUZZER_HARDWARE_VERIFIED = true",
             "FAN_ARMED = false",
             "SERVO_ARMED = false",
@@ -130,6 +130,10 @@ class FirmwareContractTests(unittest.TestCase):
             with self.subTest(pin=name):
                 self.assertRegex(config, rf"\b{name}\s*=\s*{pin}\s*;")
 
+        self.assertRegex(config, r"\bRGB_DIAGNOSTIC_PIN\s*=\s*13\s*;")
+        self.assertIn("BUZZER_ARMED = false", config)
+        self.assertIn("RGB_ARMED = true", config)
+
     def test_stage_four_protocol_has_honest_hello_telemetry_and_ack(self):
         source = self.read_required(MAIN_CPP)
 
@@ -150,7 +154,7 @@ class FirmwareContractTests(unittest.TestCase):
             'features["physicalBuzzer"]',
             'features["physicalRgb"]',
             'root["rfid"] = false',
-            'health["stage"] = "stage4-rgb-hardware-validation"',
+            'health["stage"] = "stage4-rgb-pin13-diagnostic"',
             'health["sensorsReady"] = true',
             'health["actuatorsReady"] = false',
             'health["actuatorsArmed"] = ACTUATORS_ARMED',
@@ -159,6 +163,7 @@ class FirmwareContractTests(unittest.TestCase):
             'health["servoArmed"] = SERVO_ARMED',
             'health["relayArmed"] = RELAY_ARMED',
             'health["rgbArmed"] = RGB_ARMED',
+            'health["rgbDiagnosticPin"] = RGB_DIAGNOSTIC_PIN',
             'health["buzzerHardwareVerified"] = BUZZER_HARDWARE_VERIFIED',
             'health["rgbHardwareVerified"] = RGB_HARDWARE_VERIFIED',
             'health["actuatorApplyState"] = actuatorApplyStateName(currentApply.state)',
@@ -240,13 +245,15 @@ class FirmwareContractTests(unittest.TestCase):
         for token in [
             "Adafruit_NeoPixel",
             "RGB_LED_COUNT",
-            "PIN_RGB",
+            "RGB_DIAGNOSTIC_PIN",
             "NEO_GRB + NEO_KHZ800",
             "setBrightness(RGB_TEST_BRIGHTNESS)",
             "rgbPixels_.begin()",
             "rgbPixels_.clear()",
             "rgbPixels_.show()",
             "rgbPixels_.setPixelColor(0, rgbPixels_.Color(255, 0, 0))",
+            "ActuatorApplyState::PartialRgbDiagnostic",
+            'return "partial-rgb-pin13-diagnostic"',
         ]:
             with self.subTest(token=token):
                 self.assertIn(token, source + header)
@@ -381,6 +388,7 @@ class FirmwareContractTests(unittest.TestCase):
             'applied["rgbBrightness"] = RGB_TEST_BRIGHTNESS',
             'applied["rgbPixels"] = RGB_TEST_ACTIVE_PIXELS',
             'applied["rgbRingPixels"] = RGB_LED_COUNT',
+            'applied["rgbOutputPin"] = RGB_DIAGNOSTIC_PIN',
             '"rgb_test_state_only"',
             'strcmp(requestedState, "red") == 0',
         ]:

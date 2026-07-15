@@ -24,7 +24,8 @@ class ActuatorDriver {
  private:
   BuzzerPulseController buzzerPulse_;
   RgbPulseController rgbPulse_;
-  Adafruit_NeoPixel rgbPixels_{RGB_LED_COUNT, PIN_RGB, NEO_GRB + NEO_KHZ800};
+  Adafruit_NeoPixel rgbPixels_{RGB_LED_COUNT, RGB_DIAGNOSTIC_PIN,
+                              NEO_GRB + NEO_KHZ800};
   bool buzzerAvailable_ = false;
   bool rgbAvailable_ = false;
 };
