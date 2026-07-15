@@ -65,7 +65,7 @@ ContextMode selectedContextMode() {
 }
 
 void addStageHealth(JsonObject health) {
-  health["stage"] = "stage4-rgb-pin13-diagnostic";
+  health["stage"] = "stage4-rgb-gpio46-si-validation";
   health["sensorsReady"] = true;
   health["actuatorsArmed"] = ACTUATORS_ARMED;
   health["actuatorsReady"] = false;
@@ -74,7 +74,7 @@ void addStageHealth(JsonObject health) {
   health["servoArmed"] = SERVO_ARMED;
   health["relayArmed"] = RELAY_ARMED;
   health["rgbArmed"] = RGB_ARMED;
-  health["rgbDiagnosticPin"] = RGB_DIAGNOSTIC_PIN;
+  health["rgbTestOutputPin"] = RGB_TEST_OUTPUT_PIN;
   health["buzzerHardwareVerified"] = BUZZER_HARDWARE_VERIFIED;
   health["rgbHardwareVerified"] = RGB_HARDWARE_VERIFIED;
   health["actuatorApplyState"] = actuatorApplyStateName(currentApply.state);
@@ -365,7 +365,7 @@ void emitRgbAck(const char* commandId, bool pulseStarted) {
     applied["rgbBrightness"] = RGB_TEST_BRIGHTNESS;
     applied["rgbPixels"] = RGB_TEST_ACTIVE_PIXELS;
     applied["rgbRingPixels"] = RGB_LED_COUNT;
-    applied["rgbOutputPin"] = RGB_DIAGNOSTIC_PIN;
+    applied["rgbOutputPin"] = RGB_TEST_OUTPUT_PIN;
   }
   writeJsonLine(document);
 }

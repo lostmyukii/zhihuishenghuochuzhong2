@@ -94,9 +94,7 @@ bool ActuatorDriver::tick(uint32_t nowMs) {
 
 ActuatorApplyResult ActuatorDriver::result() const {
   ActuatorApplyResult current;
-  if (rgbAvailable_ && !buzzerAvailable_) {
-    current.state = ActuatorApplyState::PartialRgbDiagnostic;
-  } else if (rgbAvailable_) {
+  if (rgbAvailable_) {
     current.state = ActuatorApplyState::PartialBuzzerRgbTest;
   } else if (buzzerAvailable_) {
     current.state = ActuatorApplyState::PartialBuzzerTest;
@@ -111,8 +109,6 @@ ActuatorApplyResult ActuatorDriver::result() const {
 
 const char* actuatorApplyStateName(ActuatorApplyState state) {
   switch (state) {
-    case ActuatorApplyState::PartialRgbDiagnostic:
-      return "partial-rgb-pin13-diagnostic";
     case ActuatorApplyState::PartialBuzzerRgbTest:
       return "partial-buzzer-rgb-test";
     case ActuatorApplyState::PartialBuzzerTest:
