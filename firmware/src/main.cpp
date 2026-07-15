@@ -65,11 +65,17 @@ ContextMode selectedContextMode() {
 }
 
 void addStageHealth(JsonObject health) {
-  health["stage"] = "stage4-actuator-safety-software";
+  health["stage"] = "stage4-buzzer-hardware-validation";
   health["sensorsReady"] = true;
-  health["actuatorsArmed"] = false;
+  health["actuatorsArmed"] = ACTUATORS_ARMED;
   health["actuatorsReady"] = false;
-  health["actuatorApplyState"] = "unarmed";
+  health["buzzerArmed"] = BUZZER_ARMED;
+  health["fanArmed"] = FAN_ARMED;
+  health["servoArmed"] = SERVO_ARMED;
+  health["relayArmed"] = RELAY_ARMED;
+  health["rgbArmed"] = RGB_ARMED;
+  health["buzzerHardwareVerified"] = BUZZER_HARDWARE_VERIFIED;
+  health["actuatorApplyState"] = actuatorApplyStateName(currentApply.state);
   health["contextReady"] = true;
   health["safetyReady"] = true;
   health["hardwareVerified"] = false;
@@ -85,7 +91,7 @@ void updateDecision(uint32_t nowMs) {
   currentContext = contextEngine.evaluate(snapshot, selectedContextMode());
   currentPlan = actuatorPlanner.plan(selectedContextMode(), snapshot, currentContext,
                                      currentSafety, buzzerEnabled);
-  currentApply = actuatorDriver.apply(currentPlan.finalTarget);
+  currentApply = actuatorDriver.apply(currentPlan.finalTarget, nowMs);
   decisionDirty = false;
 }
 
@@ -106,6 +112,7 @@ void emitHello() {
   features["safetyReasoning"] = true;
   features["actuatorPlanning"] = true;
   features["physicalActuators"] = false;
+  features["physicalBuzzer"] = ACTUATORS_ARMED && BUZZER_ARMED;
   features["webVoiceIntent"] = true;
   features["localVoiceNlu"] = false;
   features["mcp"] = false;
@@ -256,7 +263,11 @@ void emitTelemetry() {
   actuators["fanPercent"] = nullptr;
   actuators["servoAngle"] = nullptr;
   actuators["relayOn"] = nullptr;
-  actuators["buzzerOn"] = nullptr;
+  if (currentApply.buzzerAvailable) {
+    actuators["buzzerOn"] = currentApply.buzzerOn;
+  } else {
+    actuators["buzzerOn"] = nullptr;
+  }
   actuators["rgbState"] = nullptr;
 
   JsonArray alerts = root["alerts"].to<JsonArray>();
@@ -314,6 +325,21 @@ void emitAck(const char* commandId, bool ok, const char* error = nullptr) {
     applied["buzzerEnabled"] = buzzerEnabled;
   } else {
     root["error"] = error == nullptr ? "unsupported_command" : error;
+  }
+  writeJsonLine(document);
+}
+
+void emitBuzzerAck(const char* commandId, bool pulseStarted) {
+  JsonDocument document;
+  JsonObject root = document.to<JsonObject>();
+  root["type"] = "ack";
+  root["project"] = PROJECT_ID;
+  root["id"] = commandId;
+  root["ok"] = true;
+  JsonObject applied = root["applied"].to<JsonObject>();
+  applied["buzzerOn"] = currentApply.buzzerOn;
+  if (pulseStarted) {
+    applied["buzzerPulseMs"] = BUZZER_TEST_PULSE_MS;
   }
   writeJsonLine(document);
 }
@@ -408,6 +434,22 @@ void handleCommandLine(const String& line) {
     emitAck(commandId, false, "actuators_unarmed");
     return;
   }
+  if (!actuator["buzzer"].isNull()) {
+    if (!BUZZER_ARMED) {
+      emitAck(commandId, false, "actuators_unarmed");
+      return;
+    }
+    const bool pulseRequested = actuator["buzzer"].as<bool>();
+    if (pulseRequested) {
+      currentApply = actuatorDriver.requestBuzzerPulse(millis());
+    } else {
+      currentApply = actuatorDriver.stopBuzzer();
+    }
+    emitBuzzerAck(commandId, pulseRequested);
+    emitTelemetry();
+    lastTelemetryAt = millis();
+    return;
+  }
   emitAck(commandId, false, "actuators_unarmed");
 }
 
@@ -439,8 +481,8 @@ void setup() {
   Serial.begin(SERIAL_BAUD);
   delay(50);
   serialLine.reserve(SERIAL_LINE_MAX_BYTES);
-  currentApply = actuatorDriver.begin();
   const uint32_t now = millis();
+  currentApply = actuatorDriver.begin(now);
   sensors.begin(now);
   sensors.poll(now);
   updateDecision(now);
@@ -455,6 +497,11 @@ void loop() {
   sensors.poll(now);
   if (sensors.snapshot().mq2.updatedAtMs != lastSafetySampleAt || decisionDirty) {
     updateDecision(now);
+  }
+  if (actuatorDriver.tick(now)) {
+    currentApply = actuatorDriver.result();
+    emitTelemetry();
+    lastTelemetryAt = now;
   }
   if (now - lastTelemetryAt >= TELEMETRY_INTERVAL_MS) {
     lastTelemetryAt = now;

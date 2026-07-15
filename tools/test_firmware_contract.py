@@ -140,12 +140,19 @@ class FirmwareContractTests(unittest.TestCase):
             'features["safetyReasoning"] = true',
             'features["actuatorPlanning"] = true',
             'features["physicalActuators"] = false',
+            'features["physicalBuzzer"]',
             'root["rfid"] = false',
-            'health["stage"] = "stage4-actuator-safety-software"',
+            'health["stage"] = "stage4-buzzer-hardware-validation"',
             'health["sensorsReady"] = true',
             'health["actuatorsReady"] = false',
-            'health["actuatorsArmed"] = false',
-            'health["actuatorApplyState"] = "unarmed"',
+            'health["actuatorsArmed"] = ACTUATORS_ARMED',
+            'health["buzzerArmed"] = BUZZER_ARMED',
+            'health["fanArmed"] = FAN_ARMED',
+            'health["servoArmed"] = SERVO_ARMED',
+            'health["relayArmed"] = RELAY_ARMED',
+            'health["rgbArmed"] = RGB_ARMED',
+            'health["buzzerHardwareVerified"] = BUZZER_HARDWARE_VERIFIED',
+            'health["actuatorApplyState"] = actuatorApplyStateName(currentApply.state)',
             'health["contextReady"] = true',
             'health["safetyReady"] = true',
             'health["hardwareVerified"] = false',
@@ -310,7 +317,7 @@ class FirmwareContractTests(unittest.TestCase):
             'actuators["fanPercent"] = nullptr',
             'actuators["servoAngle"] = nullptr',
             'actuators["relayOn"] = nullptr',
-            'actuators["buzzerOn"] = nullptr',
+            'actuators["buzzerOn"] = currentApply.buzzerOn',
             'actuators["rgbState"] = nullptr',
         ]:
             with self.subTest(token=token):
@@ -338,11 +345,15 @@ class FirmwareContractTests(unittest.TestCase):
             '"invalid_actuator_command"',
             '"actuators_unarmed"',
             'root["id"] = nullptr',
+            "actuatorDriver.requestBuzzerPulse",
+            "actuatorDriver.stopBuzzer",
+            'applied["buzzerPulseMs"] = BUZZER_TEST_PULSE_MS',
         ]:
             with self.subTest(token=token):
                 self.assertIn(token, source)
 
         self.assertIn("buzzerEnabled = requested", source)
+        self.assertIn("actuatorDriver.tick(now)", source)
         self.assertNotIn("buzzerEnabled = false;  // actuator", source)
 
     def test_agents_and_gitignore_preserve_no_flash_boundary(self):

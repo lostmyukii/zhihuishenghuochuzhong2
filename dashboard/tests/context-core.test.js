@@ -104,6 +104,39 @@ test("future real applied values are never inferred from targets", () => {
   assert.equal(core.actuatorPresentation(missing).fan, "计划：未知 / 实际：未知");
 });
 
+test("partial buzzer validation shows only GPIO13 as physically available", () => {
+  const telemetry = core.normalizeTelemetry({
+    type: "telemetry",
+    project: "smartlife-junior-context",
+    actuatorTargets: {fanPercent: 100, servoPosition: "ventilation-open", relayOn: false, buzzerMode: "alarm", rgbState: "red"},
+    actuators: {fanPercent: null, servoAngle: null, relayOn: null, buzzerOn: false, rgbState: null},
+    health: {actuatorApplyState: "partial-buzzer-test", buzzerArmed: true, fanArmed: false, servoArmed: false, relayArmed: false, rgbArmed: false, hardwareVerified: false},
+  });
+  const view = core.actuatorPresentation(telemetry);
+
+  assert.equal(view.applyLabel, "仅蜂鸣器测试已武装");
+  assert.equal(view.fan, "计划：100% / 实际：未武装/未应用");
+  assert.equal(view.servo, "计划：通风打开 / 实际：未武装/未应用");
+  assert.equal(view.relay, "计划：关闭 / 实际：未武装/未应用");
+  assert.equal(view.buzzer, "计划：安全报警 / 实际：关闭");
+  assert.equal(view.rgb, "计划：红色 / 实际：未武装/未应用");
+  assert.equal(view.calibrationRequired, true);
+});
+
+test("partial buzzer validation reports the pulse without inferring other outputs", () => {
+  const telemetry = core.normalizeTelemetry({
+    type: "telemetry",
+    project: "smartlife-junior-context",
+    actuatorTargets: {buzzerMode: "off"},
+    actuators: {buzzerOn: true},
+    health: {actuatorApplyState: "partial-buzzer-test", buzzerArmed: true},
+  });
+  const view = core.actuatorPresentation(telemetry);
+
+  assert.equal(view.buzzer, "计划：关闭 / 实际：开启");
+  assert.equal(view.fan, "计划：未知 / 实际：未武装/未应用");
+});
+
 test("safety sensor faults have an explicit Chinese label", () => {
   assert.equal(core.alertLabel("safety_sensor_fault"), "安全传感器数据异常");
 });

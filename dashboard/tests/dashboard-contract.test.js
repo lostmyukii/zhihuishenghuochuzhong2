@@ -46,6 +46,7 @@ test("client implements query endpoint, ack timeout and stale clearing", () => {
 test("stage four dashboard separates targets, mock execution and physical truth", () => {
   const html = read("index.html");
   const source = read("app.js");
+  const contextCore = read("context-core.js");
 
   assert.match(html, /阶段 4 软件基线/);
   assert.match(html, /id=["']calibration-status["']/);
@@ -54,6 +55,7 @@ test("stage four dashboard separates targets, mock execution and physical truth"
   assert.match(source, /ContextCore\.actuatorPresentation/);
   assert.match(source, /未武装\/未应用/);
   assert.match(source, /Mock模拟执行/);
+  assert.match(contextCore, /仅蜂鸣器测试已武装/);
   assert.match(source, /calibration-status/);
   assert.doesNotMatch(html, /真板在线/);
 });
