@@ -1,10 +1,12 @@
 # 阶段4 GPIO13有源蜂鸣器真板验收实施计划
 
+> **计划状态：** 已完成；最终固件`0.3.1`使用800ms非阻塞短测，GPIO13通过真板验收。
+>
 > **执行要求：** 严格按任务顺序推进。软件步骤先写失败测试、确认失败原因正确，再做最小实现；硬件步骤只写PIO应用段`0x10000`，每次写入后必须独立校验。任何停止条件出现时立即停在当前检查点。
 
-**目标：** 在风扇、舵机、继电器和RGB继续未武装的前提下，为GPIO13有源蜂鸣器建立上电静音、命令触发150ms非阻塞短鸣、自动停止、同ID确认和真实遥测，并完成一次用户可感知的真板验收。
+**目标：** 在风扇、舵机、继电器和RGB继续未武装的前提下，为GPIO13有源蜂鸣器建立上电静音、命令触发800ms非阻塞短鸣、自动停止、同ID确认和真实遥测，并完成一次用户可感知的真板验收。
 
-**架构：** 纯C++ `BuzzerPulseController`只管理150ms时间窗口；`ActuatorDriver`是唯一GPIO13物理边界；`main.cpp`只解析命令、调度驱动和序列化协议。逻辑安全目标继续留在`actuatorTargets`，本轮不把`alarm/intermittent`自动映射到物理蜂鸣器。
+**架构：** 纯C++ `BuzzerPulseController`只管理800ms时间窗口；`ActuatorDriver`是唯一GPIO13物理边界；`main.cpp`只解析命令、调度驱动和序列化协议。逻辑安全目标继续留在`actuatorTargets`，本轮不把`alarm/intermittent`自动映射到物理蜂鸣器。
 
 **技术栈：** C++17原生测试、PlatformIO Arduino ESP32-S3、ArduinoJson 7、Python `unittest`、Node.js `node:test`、esptool.py 4.11.0、CH340 UART 115200。
 
@@ -32,7 +34,7 @@
 | 修改仓库代码和文档 | Git跟踪文件 | 回到已知良好提交并重新编译 | 可按计划小步执行 |
 | PIO编译 | 只更新忽略的`.pio/`产物 | 删除产物或重新编译 | 无硬件副作用 |
 | 应用段写入 | 修改Flash `0x10000`应用区域 | 写回保存的`0.3.0`应用产物；整片私密备份只作最后恢复手段 | 已明确授权，仅按本计划执行 |
-| 150ms短鸣 | 产生一次可听声音 | 自动停止或发送`buzzer=false`；异常时拔USB | 用户必须在场确认 |
+| 800ms短鸣 | 产生一次可听声音 | 自动停止或发送`buzzer=false`；异常时拔USB | 用户必须在场确认；150ms首测未听到后按实物结果修订 |
 | Git推送 | 更新`origin/main` | 新提交纠正，不改写远端历史 | 软件和硬件证据通过后执行 |
 
 明确禁止：
@@ -63,7 +65,7 @@ git log -3 --oneline --decorate
 
 恢复优先级：先把保存的`0.3.0`应用产物写回`0x10000`；只有应用段恢复不可行时，才评估整片备份恢复，且不得自动执行整片恢复。
 
-## 任务2：TDD建立150ms计时控制器和GPIO13安全驱动
+## 任务2：TDD建立800ms计时控制器和GPIO13安全驱动
 
 **文件：**
 
@@ -80,11 +82,11 @@ git log -3 --oneline --decorate
 
 ### 2.1 先写失败测试
 
-原生测试至少覆盖：初始静音、请求后开启、149ms仍开、150ms自动关闭、重复请求刷新窗口、`stop()`立即关闭和`uint32_t`计时回绕。
+原生测试至少覆盖：初始静音、请求后开启、到期前仍开、800ms自动关闭、重复请求刷新窗口、`stop()`立即关闭和`uint32_t`计时回绕。
 
 静态合同先要求：
 
-- `BUZZER_TEST_PULSE_MS=150`。
+- `BUZZER_TEST_PULSE_MS=800`。
 - 验证固件版本`0.3.1-rc1`。
 - `ACTUATORS_ARMED=true`、`BUZZER_ARMED=true`。
 - `FAN_ARMED/SERVO_ARMED/RELAY_ARMED/RGB_ARMED=false`。
@@ -108,7 +110,7 @@ python3 -m unittest tools/test_buzzer_pulse_controller.py tools/test_firmware_co
 - `begin(nowMs)`先锁存GPIO13为`LOW`，再设为`OUTPUT`。
 - `requestBuzzerPulse(nowMs)`启动控制器并写`HIGH`。
 - `stopBuzzer()`立即写`LOW`。
-- `tick(nowMs)`在到期时写`LOW`，不使用`delay(150)`。
+- `tick(nowMs)`在到期时写`LOW`，不使用`delay(800)`。
 - `result()`返回`PartialBuzzerTest`、`buzzerAvailable`和真实`buzzerOn`。
 - `apply(finalTarget, nowMs)`保留计划接口，但不把`alarm/intermittent`写到GPIO13。
 
@@ -147,7 +149,7 @@ feat: add guarded buzzer pulse driver
 - `health.actuatorApplyState="partial-buzzer-test"`。
 - `hardwareVerified=false`、`calibrationRequired=true`。
 - `actuators.buzzerOn`来自驱动；其他四项继续为JSON `null`。
-- `actuator.buzzer=true`返回同ID成功`ack`和`buzzerPulseMs=150`。
+- `actuator.buzzer=true`返回同ID成功`ack`和`buzzerPulseMs=800`。
 - `actuator.buzzer=false`返回同ID成功`ack`并立即静音。
 - 其他四类合法执行器命令继续返回`actuators_unarmed`。
 - `set.buzzerEnabled`仍只改变安全静音配置，不阻止用户明确发起验证短鸣。
@@ -176,8 +178,8 @@ telemetry emit
 
 - `buzzer=true`调用`requestBuzzerPulse(millis())`，返回同ID成功`ack`并立即输出`buzzerOn=true`遥测。
 - `buzzer=false`调用`stopBuzzer()`，返回同ID成功`ack`并立即输出`buzzerOn=false`遥测。
-- 150ms到期发生状态变化时立即输出`buzzerOn=false`遥测，不能依赖500ms周期偶然捕捉短脉冲。
-- 重复`buzzer=true`只刷新150ms窗口。
+- 800ms到期发生状态变化时立即输出`buzzerOn=false`遥测，不能依赖500ms周期偶然捕捉短脉冲。
+- 重复`buzzer=true`只刷新800ms窗口。
 - 其他合法执行器命令按独立武装开关拒绝。
 - 串口仍保持一行一个完整JSON对象，不混入调试文字。
 
@@ -364,7 +366,7 @@ git push origin main
 
 完成后可以表述：
 
-> GPIO13有源蜂鸣器已通过上电静音、150ms单次短鸣、自动停止、停止命令、同ID ack、真实遥测、应用段校验和最终固件状态验收。
+> GPIO13有源蜂鸣器已通过上电静音、800ms单次短鸣、自动停止、停止命令、同ID ack、真实遥测、应用段校验和最终固件状态验收。
 
 仍不得表述：
 

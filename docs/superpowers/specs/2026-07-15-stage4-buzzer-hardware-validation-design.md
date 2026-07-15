@@ -8,27 +8,27 @@
 >
 > 规格日期：2026-07-15
 >
-> 规格状态：A方案和书面规格已由用户确认，等待按实施计划执行
+> 规格状态：已实施并通过真板验收；首轮150ms未听到后依据实物证据修订为800ms
 >
 > 实施边界：只验收GPIO13有源蜂鸣器；风扇、舵机、继电器和RGB继续保持未武装
 
 ## 1. 已确认前提
 
-- 用户已把有源蜂鸣器接到拓展板`GPIO13`端口，接线为`V-G-S`。
+- 用户已把有源蜂鸣器接到拓展板`GPIO13`端口；实物确认拓展板与模块均为`G-V-S`，按`G→G、V→V、S13→S`同序连接。
 - 用户确认当前固件运行时蜂鸣器保持静音。
 - 2026-07-15真板会话已经完成整片16MB Flash私密备份、首次PIO完整上传、四段摘要校验以及`hello/telemetry/ack`串口验证。
-- 当前主板运行本项目PIO固件`0.3.0`，PIO应用偏移为`0x10000`；本规格不改变板卡、分区表或13个固定GPIO。
+- 验收开始时主板运行本项目PIO固件`0.3.0`，验收完成后运行`0.3.1`；PIO应用偏移始终为`0x10000`，本规格未改变板卡、分区表或13个固定GPIO。
 - MQ2、火焰或其他安全输入不得使用真实燃气、危险烟雾或明火触发。
 
 当前物理执行器仍只有蜂鸣器接入。风扇`GPIO11`、舵机`GPIO9`、继电器`GPIO12`和RGB`GPIO46`必须继续断开。
 
 ## 2. 方案比较与已选方案
 
-### A：上电静音、命令触发150ms短鸣（已确认）
+### A：上电静音、命令触发800ms短鸣（实物验收后修订）
 
 - GPIO13按高电平有效的起始假设实现。
 - 上电先写安全低电平，再切换为输出，禁止启动自检声。
-- `actuator.buzzer=true`只触发一次约`150ms`的非阻塞短鸣，然后自动回到静音。
+- `actuator.buzzer=true`只触发一次约`800ms`的非阻塞短鸣，然后自动回到静音。首轮`150ms`协议与自动关闭正常但人工未听到声音，按相邻已验证实板时长调整后通过听觉验收。
 - `actuator.buzzer=false`立即停止尚未结束的短鸣。
 - 本轮不把安全引擎的`alarm`或`intermittent`目标直接映射到实物，避免未完成风险阈值复核时持续鸣叫。
 
@@ -75,12 +75,12 @@ constexpr bool RGB_ARMED = false;
 ```text
 boot/unarmed -> idle-silent
 idle-silent + buzzer=true -> pulse-active
-pulse-active + 150ms到期 -> idle-silent
+pulse-active + 800ms到期 -> idle-silent
 pulse-active + buzzer=false -> idle-silent
 ```
 
-- 使用`millis()`计算截止时间，不在主循环中使用`delay(150)`。
-- 重复的`buzzer=true`可以重新开始一次150ms窗口，但不会变成持续鸣叫。
+- 使用`millis()`计算截止时间，不在主循环中使用`delay(800)`。
+- 重复的`buzzer=true`可以重新开始一次800ms窗口，但不会变成持续鸣叫。
 - `buzzer=false`具有即时停止优先级。
 - 上电、模式切换、MQ2预热和普通遥测都不能自动启动验证短鸣。
 - 本轮`ActuatorPlanner`产生的`alarm/intermittent`继续只作为`actuatorTargets`逻辑计划，不由验证驱动物理执行。
@@ -90,7 +90,7 @@ pulse-active + buzzer=false -> idle-silent
 `ActuatorDriver`是唯一可以接触GPIO13的模块，至少提供：
 
 - `begin(nowMs)`：建立GPIO13安全静音状态。
-- `requestBuzzerPulse(nowMs)`：启动或刷新150ms短鸣窗口。
+- `requestBuzzerPulse(nowMs)`：启动或刷新800ms短鸣窗口。
 - `stopBuzzer()`：立即静音。
 - `tick(nowMs)`：非阻塞处理到期自动静音。
 - `result()`：返回当前物理蜂鸣器状态和部分武装状态。
@@ -110,7 +110,7 @@ pulse-active + buzzer=false -> idle-silent
 预期成功确认：
 
 ```json
-{"type":"ack","id":"buzzer-test-1","ok":true,"applied":{"buzzerPulseMs":150}}
+{"type":"ack","id":"buzzer-test-1","ok":true,"applied":{"buzzerPulseMs":800}}
 ```
 
 立即停止：
@@ -168,8 +168,8 @@ monitor_rts = 0
 2. 总闸和蜂鸣器独立开关开启，其他四个独立开关保持关闭。
 3. `ActuatorDriver`安全顺序为先写`LOW`再将GPIO13设为输出。
 4. 其他执行器GPIO没有初始化或写入。
-5. `buzzer=true`产生150ms窗口并返回同ID成功`ack`。
-6. 到期后自动静音，且实现不包含阻塞式`delay(150)`。
+5. `buzzer=true`产生800ms窗口并返回同ID成功`ack`。
+6. 到期后自动静音，且实现不包含阻塞式`delay(800)`。
 7. `buzzer=false`立即停止。
 8. 其他执行器命令仍返回`actuators_unarmed`。
 9. `buzzerOn`真实反映物理窗口，其他执行器实际值继续为`null`。
@@ -177,7 +177,7 @@ monitor_rts = 0
 11. PlatformIO Monitor固定DTR/RTS为inactive。
 12. 原有SafetyEngine、ActuatorPlanner、网关和Dashboard测试继续通过。
 
-驱动计时逻辑应可在本机C++测试中使用假的`nowMs`验证，不依赖真实等待150ms。
+驱动计时逻辑应可在本机C++测试中使用假的`nowMs`验证，不依赖真实等待800ms。
 
 ## 8. 编译、上传与真板验收顺序
 
@@ -187,7 +187,7 @@ monitor_rts = 0
 4. 因主板已经运行同一板卡、同一分区表的PIO基线，本轮只更新`0x10000`应用，不重写bootloader、分区表或NVS，也不执行全片擦除。
 5. 写入后对`0x10000`实际应用段运行摘要校验。
 6. 复位并观察：蜂鸣器必须保持静音，串口持续输出正确`hello/telemetry`。
-7. 发送一次`buzzer=true`，用户确认只听到一次约150ms短鸣且自动停止。
+7. 发送一次`buzzer=true`，用户确认只听到一次约800ms短鸣且自动停止。
 8. 发送`buzzer=false`，确认保持静音。
 9. 观察后续遥测，确认`buzzerOn`由`true`自动恢复为`false`，其他执行器实际字段仍为`null`。
 10. 记录一次同ID成功`ack`和一次其他执行器`actuators_unarmed`拒绝证据。
@@ -199,7 +199,7 @@ monitor_rts = 0
 ### 9.1 通过条件
 
 - 上电和复位均无启动鸣叫。
-- 命令只产生一次短鸣，并在约150ms后自动停止。
+- 命令只产生一次短鸣，并在约800ms后自动停止。
 - 停止命令可以即时静音。
 - 串口协议、传感器遥测和USB供电保持稳定。
 - GPIO13以外没有执行器被初始化或动作。
@@ -218,7 +218,7 @@ monitor_rts = 0
 
 通过后可以表述：
 
-> GPIO13有源蜂鸣器已完成上电静音、单次150ms短鸣、自动关闭、停止命令和串口状态真板验收。
+> GPIO13有源蜂鸣器已完成上电静音、单次800ms短鸣、自动关闭、停止命令和串口状态真板验收。
 
 仍不能表述：
 
