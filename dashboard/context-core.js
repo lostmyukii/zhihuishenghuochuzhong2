@@ -41,6 +41,9 @@
     cyan: "青色",
     yellow: "黄色",
     red: "红色",
+    green: "绿色",
+    blue: "蓝色",
+    purple: "紫色",
     "blue-red": "蓝红提示",
     gray: "灰色",
   });
@@ -149,11 +152,13 @@
     const actuators = actualLabels(telemetry.actuators || {});
     const health = telemetry.health || {};
     const simulated = telemetry.mock === true || health.actuatorApplyState === "simulated";
+    const bootGuard = !simulated && health.actuatorApplyState === "boot-guard";
+    const fullyArmed = !simulated && health.actuatorApplyState === "fully-armed";
     const unarmed = !simulated && health.actuatorApplyState === "unarmed";
     const partialBuzzer = !simulated && health.actuatorApplyState === "partial-buzzer-test";
     const partialBuzzerRgb = !simulated && health.actuatorApplyState === "partial-buzzer-rgb-test";
     const actualPrefix = simulated ? "模拟执行" : "实际";
-    const actualValue = (key) => unarmed ||
+    const actualValue = (key) => unarmed || bootGuard ||
       (partialBuzzer && key !== "buzzer") ||
       (partialBuzzerRgb && key !== "buzzer" && key !== "rgb")
       ? "未武装/未应用"
@@ -168,6 +173,10 @@
       rgb: row("rgb"),
       applyLabel: simulated
         ? "Mock模拟执行"
+        : bootGuard
+          ? "启动保护中"
+          : fullyArmed
+            ? "整屋自动联动"
         : unarmed
           ? "执行器未武装"
           : partialBuzzer

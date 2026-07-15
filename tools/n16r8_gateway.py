@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Stage-4 local WebSocket gateway with an explicit N16R8 mock board."""
+"""Stage-5 WebSocket gateway for a real CH340 board or explicit mock board."""
 
 from __future__ import annotations
 
 import argparse
+import glob
+import json
 import queue
 import signal
 import threading
@@ -18,6 +20,7 @@ PROJECT_ID = "smartlife-junior-context"
 PROFILE_ID = "smartlife-junior-context-detective-v1"
 MODES = ("detect", "study", "rest", "ventilation", "energy", "custom")
 MOCK_SCENARIOS = ("normal", "mq2", "water", "flame")
+BOARD_FRAME_TYPES = {"hello", "telemetry", "health", "ack"}
 
 PINS = {
     "light": 1,
@@ -34,6 +37,63 @@ PINS = {
     "relay": 12,
     "rgb": 46,
 }
+
+
+def parse_serial_json(raw: bytes | str) -> dict[str, Any] | None:
+    """Parse one board line and reject debug text or foreign projects."""
+    try:
+        text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+    except UnicodeDecodeError:
+        return None
+    text = text.strip()
+    if not text:
+        return None
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end < start:
+        return None
+    try:
+        frame = json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+    if (
+        not isinstance(frame, dict)
+        or frame.get("project") != PROJECT_ID
+        or frame.get("type") not in BOARD_FRAME_TYPES
+    ):
+        return None
+    return frame
+
+
+def encode_serial_command(frame: dict[str, Any]) -> bytes:
+    if (
+        not isinstance(frame, dict)
+        or frame.get("type") != "command"
+        or frame.get("project") != PROJECT_ID
+        or not isinstance(frame.get("id"), str)
+        or not frame["id"]
+    ):
+        raise ValueError("serial command requires project, type=command and id")
+    return (json.dumps(frame, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+
+
+def select_serial_port(candidates: list[str]) -> str | None:
+    def rank(path: str) -> tuple[int, str]:
+        if path.startswith("/dev/cu.usbserial") or path.startswith("/dev/cu.wchusb"):
+            return (0, path)
+        if path.startswith("/dev/tty.usbserial") or path.startswith("/dev/tty.wchusb"):
+            return (1, path)
+        return (2, path)
+
+    usable = [path for path in candidates if "usbserial" in path or "wchusb" in path]
+    return sorted(usable, key=rank)[0] if usable else None
+
+
+def discover_serial_port() -> str | None:
+    candidates: list[str] = []
+    for pattern in ("/dev/cu.usbserial*", "/dev/cu.wchusb*", "/dev/tty.usbserial*", "/dev/tty.wchusb*"):
+        candidates.extend(glob.glob(pattern))
+    return select_serial_port(candidates)
 
 MODE_PROFILES: dict[str, dict[str, Any]] = {
     "detect": {
@@ -77,6 +137,11 @@ SERVO_ANGLES = {
     "safety-closed": 0,
 }
 
+SERVO_POSITIONS = frozenset(SERVO_ANGLES)
+RGB_STATES = frozenset(
+    {"off", "study", "orange", "blue-low", "cyan", "yellow", "red", "green", "blue", "purple", "blue-red"}
+)
+
 
 def simulated_actuators(targets: dict[str, Any]) -> dict[str, Any]:
     return {
@@ -95,6 +160,7 @@ class MockBoardState:
         self.started_at = time.monotonic()
         self.sequence = 0
         self.buzzer_enabled = True
+        self.manual_overrides: dict[str, Any] = {}
 
     def hello(self) -> dict[str, Any]:
         return {
@@ -103,14 +169,14 @@ class MockBoardState:
             "profileId": PROFILE_ID,
             "board": "n16r8_esp32s3",
             "deviceName": "N16R8 无摄像头家庭情境侦探屋",
-            "firmware": "mock-stage4",
+            "firmware": "mock-stage5",
             "mock": True,
             "source": "mock-board",
             "rfid": False,
             "pins": PINS.copy(),
             "features": {"contextReasoning": True, "safetyReasoning": True, "actuatorPlanning": True, "physicalActuators": False, "webVoiceIntent": True, "localVoiceNlu": False, "mcp": False},
-            "capabilities": {"commands": ["setMode", "setMockScenario", "setBuzzerEnabled"], "modes": list(MODES), "mockScenarios": list(MOCK_SCENARIOS)},
-            "health": {"stage": "mock-stage4-actuator-safety", "source": "mock-board", "sensorsReady": True, "actuatorsReady": True, "actuatorApplyState": "simulated", "contextReady": True, "safetyReady": True, "hardwareVerified": False, "calibrationRequired": True, "buzzerEnabled": self.buzzer_enabled},
+            "capabilities": {"commands": ["setMode", "setMockScenario", "setBuzzerEnabled", "setActuator"], "modes": list(MODES), "mockScenarios": list(MOCK_SCENARIOS)},
+            "health": {"stage": "mock-stage5-integrated", "source": "mock-board", "sensorsReady": True, "actuatorsReady": True, "actuatorApplyState": "simulated", "contextReady": True, "safetyReady": True, "hardwareVerified": False, "calibrationRequired": True, "buzzerEnabled": self.buzzer_enabled},
         }
 
     def telemetry(self) -> dict[str, Any]:
@@ -120,6 +186,8 @@ class MockBoardState:
         targets = profile["actuatorTargets"]
         alerts: list[str] = []
         safety = {"state": "normal", "primary": "none", "causes": [], "overrideActive": False, "buzzerRequested": False, "buzzerMuted": False}
+
+        self._apply_manual_targets(targets)
 
         if self.scenario == "mq2":
             sensors["mq2"] = 3150
@@ -145,7 +213,7 @@ class MockBoardState:
             "type": "telemetry",
             "project": PROJECT_ID,
             "profileId": PROFILE_ID,
-            "firmware": "mock-stage4",
+            "firmware": "mock-stage5",
             "mock": True,
             "source": "mock-board",
             "sequence": self.sequence,
@@ -153,13 +221,47 @@ class MockBoardState:
             "mode": self.mode,
             "mockScenario": self.scenario,
             "sensors": sensors,
+            "sensorValid": {key: True for key in sensors},
+            "sensorAgeMs": {key: 0 for key in sensors},
             "actuatorTargets": targets,
             "actuators": actuators,
             "alerts": alerts,
             "safety": safety,
             "context": context,
-            "health": {"stage": "mock-stage4-actuator-safety", "source": "mock-board", "sensorsReady": True, "actuatorsReady": True, "actuatorApplyState": "simulated", "contextReady": True, "safetyReady": True, "hardwareVerified": False, "calibrationRequired": True, "buzzerEnabled": self.buzzer_enabled},
+            "health": {"stage": "mock-stage5-integrated", "source": "mock-board", "sensorsReady": True, "actuatorsReady": True, "actuatorApplyState": "simulated", "contextReady": True, "safetyReady": True, "hardwareVerified": False, "calibrationRequired": True, "buzzerEnabled": self.buzzer_enabled, "mq2AlertRaw": 2600},
         }
+
+    def _apply_manual_targets(self, targets: dict[str, Any]) -> None:
+        mappings = {
+            "fan": ("fanPercent", lambda value: value),
+            "servo": ("servoPosition", lambda value: value),
+            "relay": ("relayOn", lambda value: value),
+            "buzzer": ("buzzerMode", lambda value: "alarm" if value else "off"),
+            "rgb": ("rgbState", lambda value: value),
+        }
+        for key, value in self.manual_overrides.items():
+            target_key, transform = mappings[key]
+            targets[target_key] = transform(value)
+
+    def _apply_actuator_command(self, actuator: Any) -> bool:
+        if not isinstance(actuator, dict) or len(actuator) != 1:
+            return False
+        key, value = next(iter(actuator.items()))
+        if key not in {"fan", "servo", "relay", "buzzer", "rgb"}:
+            return False
+        if value == "auto":
+            self.manual_overrides.pop(key, None)
+            return True
+        valid = (
+            (key == "fan" and isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 100)
+            or (key == "servo" and isinstance(value, str) and value in SERVO_POSITIONS)
+            or (key in {"relay", "buzzer"} and isinstance(value, bool))
+            or (key == "rgb" and isinstance(value, str) and value in RGB_STATES)
+        )
+        if not valid:
+            return False
+        self.manual_overrides[key] = value
+        return True
 
     def apply_command(self, command: dict[str, Any]) -> dict[str, Any]:
         command_id = command.get("id")
@@ -168,7 +270,7 @@ class MockBoardState:
         if command.get("type") != "command":
             return self._ack(command_id, False, "unsupported_type")
 
-        operations = [key for key in ("mode", "mockScenario", "set") if key in command]
+        operations = [key for key in ("mode", "mockScenario", "set", "actuator") if key in command]
         if len(operations) != 1:
             return self._ack(command_id, False, "unsupported_command")
 
@@ -183,24 +285,42 @@ class MockBoardState:
             if scenario not in MOCK_SCENARIOS:
                 return self._ack(command_id, False, "unsupported_mock_scenario")
             self.scenario = scenario
-        else:
+        elif operation == "set":
             settings = command["set"]
             if not isinstance(settings, dict) or set(settings) != {"buzzerEnabled"} or not isinstance(settings["buzzerEnabled"], bool):
                 return self._ack(command_id, False, "unsupported_command")
             self.buzzer_enabled = settings["buzzerEnabled"]
+        else:
+            if not self._apply_actuator_command(command["actuator"]):
+                return self._ack(command_id, False, "invalid_actuator_command")
         return self._ack(command_id, True)
 
     def _ack(self, command_id: str | None, ok: bool, error: str | None = None) -> dict[str, Any]:
         ack: dict[str, Any] = {"type": "ack", "project": PROJECT_ID, "id": command_id, "ok": ok, "mock": True}
         if ok:
-            ack["applied"] = {"mode": self.mode, "mockScenario": self.scenario, "buzzerEnabled": self.buzzer_enabled}
+            ack["applied"] = {"mode": self.mode, "mockScenario": self.scenario, "buzzerEnabled": self.buzzer_enabled, "manualOverride": deepcopy(self.manual_overrides)}
         else:
             ack["error"] = error or "unsupported_command"
         return ack
 
 
 def health_frame() -> dict[str, Any]:
-    return {"type": "health", "project": PROJECT_ID, "mock": True, "source": "mock-board", "stage": "mock-stage4-actuator-safety", "online": True}
+    return {"type": "health", "project": PROJECT_ID, "mock": True, "source": "mock-board", "stage": "mock-stage5-integrated", "online": True}
+
+
+def serial_health_frame(port: str, online: bool, error: str | None = None) -> dict[str, Any]:
+    frame: dict[str, Any] = {
+        "type": "health",
+        "project": PROJECT_ID,
+        "mock": False,
+        "source": "serial-gateway",
+        "stage": "stage5-integrated-realtime",
+        "serialPort": port,
+        "online": online,
+    }
+    if error:
+        frame["error"] = error
+    return frame
 
 
 def run_gateway(host: str, port: int, interval: float, stop_event: threading.Event | None = None) -> None:
@@ -237,9 +357,62 @@ def run_gateway(host: str, port: int, interval: float, stop_event: threading.Eve
         relay.close()
 
 
+def run_serial_gateway(
+    host: str,
+    port: int,
+    serial_port: str | None,
+    baud: int,
+    stop_event: threading.Event | None = None,
+) -> None:
+    try:
+        import serial
+    except ImportError as exc:
+        raise SystemExit("真板网关需要 pyserial：python3 -m pip install pyserial") from exc
+
+    selected = serial_port or discover_serial_port()
+    if not selected:
+        raise SystemExit("未发现CH340串口，请使用 --serial-port 明确指定")
+
+    stop = stop_event or threading.Event()
+    relay = JsonRelayServer(host, port, broadcast_incoming=False)
+    relay.start()
+    board = serial.Serial(selected, baud, timeout=0.05, write_timeout=1)
+    board.dtr = False
+    board.rts = False
+    relay.broadcast_json(serial_health_frame(selected, True), retain=True)
+    print(f"Real board gateway: ws://{host}:{relay.port}", flush=True)
+    print(f"Serial board: {selected} @ {baud}", flush=True)
+    try:
+        while not stop.is_set():
+            raw = board.readline()
+            if raw:
+                frame = parse_serial_json(raw)
+                if frame is not None:
+                    relay.broadcast_json(frame, retain=frame["type"] in {"hello", "telemetry", "health"})
+            try:
+                command = relay.incoming.get_nowait()
+            except queue.Empty:
+                command = None
+            if command is not None:
+                try:
+                    board.write(encode_serial_command(command))
+                    board.flush()
+                except ValueError:
+                    continue
+    except (OSError, serial.SerialException) as exc:
+        relay.broadcast_json(serial_health_frame(selected, False, type(exc).__name__), retain=True)
+        raise
+    finally:
+        board.close()
+        relay.close()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="N16R8 local gateway for the context detective project")
-    parser.add_argument("--mock-board", action="store_true", help="use deterministic mock data; required in stage 2")
+    route = parser.add_mutually_exclusive_group()
+    route.add_argument("--mock-board", action="store_true", help="use deterministic mock data")
+    route.add_argument("--serial-port", help="real CH340 serial port; auto-detect when omitted")
+    parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--ws-port", type=int, default=18766)
     parser.add_argument("--interval", type=float, default=0.8, help="mock telemetry interval in seconds")
@@ -248,14 +421,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    if not args.mock_board:
-        raise SystemExit("当前真板串口网关尚未启用，请显式添加 --mock-board")
     if args.interval <= 0:
         raise SystemExit("--interval must be greater than zero")
     stop = threading.Event()
     for signal_name in (signal.SIGINT, signal.SIGTERM):
         signal.signal(signal_name, lambda _signum, _frame: stop.set())
-    run_gateway(args.host, args.ws_port, args.interval, stop)
+    if args.mock_board:
+        run_gateway(args.host, args.ws_port, args.interval, stop)
+    else:
+        run_serial_gateway(args.host, args.ws_port, args.serial_port, args.baud, stop)
     return 0
 
 

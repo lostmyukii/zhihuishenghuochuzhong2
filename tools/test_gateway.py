@@ -156,6 +156,38 @@ class GatewayContractTests(unittest.TestCase):
         self.assertTrue(telemetry["safety"]["buzzerRequested"])
         self.assertTrue(telemetry["safety"]["buzzerMuted"])
 
+    def test_mock_actuator_commands_match_stage_five_manual_auto_contract(self):
+        state = gateway.MockBoardState()
+
+        manual = state.apply_command(
+            {"type": "command", "id": "fan-manual", "actuator": {"fan": 50}}
+        )
+        telemetry = state.telemetry()
+        self.assertTrue(manual["ok"])
+        self.assertEqual(telemetry["actuatorTargets"]["fanPercent"], 50)
+        self.assertEqual(telemetry["actuators"]["fanPercent"], 50)
+
+        state.apply_command(
+            {"type": "command", "id": "fan-auto", "actuator": {"fan": "auto"}}
+        )
+        self.assertEqual(state.telemetry()["actuatorTargets"]["fanPercent"], 0)
+
+        state.apply_command(
+            {"type": "command", "id": "rgb-manual", "actuator": {"rgb": "green"}}
+        )
+        state.apply_command(
+            {"type": "command", "id": "risk", "mockScenario": "flame"}
+        )
+        risk = state.telemetry()
+        self.assertEqual(risk["actuatorTargets"]["rgbState"], "red")
+        self.assertEqual(risk["actuators"]["rgbState"], "red")
+
+        invalid = state.apply_command(
+            {"type": "command", "id": "bad-fan", "actuator": {"fan": 101}}
+        )
+        self.assertFalse(invalid["ok"])
+        self.assertEqual(invalid["error"], "invalid_actuator_command")
+
     def test_command_ack_requires_id_and_rejects_unknown_values(self):
         state = gateway.MockBoardState()
 
@@ -190,11 +222,54 @@ class GatewayContractTests(unittest.TestCase):
         self.assertFalse(ws_json.is_protocol_frame(missing_project))
         self.assertEqual(ws_json.topic_for_frame(valid), "smartlife/junior/context/n16r8/telemetry")
 
-    def test_cli_requires_explicit_mock_board_for_stage_two(self):
+    def test_cli_supports_explicit_mock_and_real_serial_routes(self):
         parser = gateway.build_parser()
-        args = parser.parse_args(["--mock-board", "--ws-port", "18766"])
-        self.assertTrue(args.mock_board)
-        self.assertEqual(args.ws_port, 18766)
+        mock = parser.parse_args(["--mock-board", "--ws-port", "18766"])
+        real = parser.parse_args(["--serial-port", "/dev/cu.usbserial-130", "--ws-port", "18766"])
+
+        self.assertTrue(mock.mock_board)
+        self.assertIsNone(mock.serial_port)
+        self.assertFalse(real.mock_board)
+        self.assertEqual(real.serial_port, "/dev/cu.usbserial-130")
+        self.assertEqual(real.baud, 115200)
+        self.assertEqual(real.ws_port, 18766)
+        self.assertIn("pyserial==3.5", (ROOT / "tools" / "requirements.txt").read_text())
+
+    def test_serial_json_filter_accepts_only_board_frames_for_this_project(self):
+        telemetry = gateway.parse_serial_json(
+            b'{"type":"telemetry","project":"smartlife-junior-context","mode":"detect"}\r\n'
+        )
+        wrong_project = gateway.parse_serial_json(
+            b'{"type":"telemetry","project":"other-project"}\n'
+        )
+        debug_text = gateway.parse_serial_json(b"booting...\n")
+
+        self.assertEqual(telemetry["mode"], "detect")
+        self.assertIsNone(wrong_project)
+        self.assertIsNone(debug_text)
+
+    def test_serial_command_encoding_requires_whitelisted_command_and_id(self):
+        encoded = gateway.encode_serial_command(
+            {"type": "command", "project": gateway.PROJECT_ID, "id": "fan-1", "actuator": {"fan": 50}}
+        )
+        self.assertEqual(
+            encoded,
+            b'{"type":"command","project":"smartlife-junior-context","id":"fan-1","actuator":{"fan":50}}\n',
+        )
+        with self.assertRaises(ValueError):
+            gateway.encode_serial_command({"type": "command", "project": gateway.PROJECT_ID, "actuator": {"fan": 50}})
+        with self.assertRaises(ValueError):
+            gateway.encode_serial_command({"type": "notice", "project": gateway.PROJECT_ID, "id": "bad"})
+
+    def test_serial_port_discovery_prefers_callout_ch340_devices(self):
+        ports = gateway.select_serial_port(
+            [
+                "/dev/tty.usbserial-130",
+                "/dev/cu.Bluetooth-Incoming-Port",
+                "/dev/cu.usbserial-130",
+            ]
+        )
+        self.assertEqual(ports, "/dev/cu.usbserial-130")
 
     def test_live_websocket_closes_the_command_ack_telemetry_loop(self):
         with socket.socket() as probe:

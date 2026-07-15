@@ -147,6 +147,12 @@ const char* rgbStateName(RgbState state) {
       return "yellow";
     case RgbState::Red:
       return "red";
+    case RgbState::Green:
+      return "green";
+    case RgbState::Blue:
+      return "blue";
+    case RgbState::Purple:
+      return "purple";
     case RgbState::BlueRed:
       return "blue-red";
     case RgbState::Gray:

@@ -6,8 +6,8 @@ const path = require("node:path");
 const dashboard = path.resolve(__dirname, "..");
 const read = (name) => fs.readFileSync(path.join(dashboard, name), "utf8");
 
-test("dashboard ships the minimal static artifact set", () => {
-  for (const name of ["index.html", "style.css", "context-core.js", "app.js"]) {
+test("dashboard ships the integrated realtime artifact set", () => {
+  for (const name of ["index.html", "style.css", "context-core.js", "serial-core.js", "registry-core.js", "voice-core.js", "alert-core.js", "app.js"]) {
     assert.equal(fs.existsSync(path.join(dashboard, name)), true, `${name} is missing`);
   }
 });
@@ -30,6 +30,19 @@ test("dashboard distinguishes mock, websocket, usb and mqtt truth", () => {
   assert.doesNotMatch(html, /真板在线/);
 });
 
+test("dashboard exposes Web Serial, room map, registry, voice, actuator console and logs", () => {
+  const html = read("index.html");
+  const source = read("app.js");
+  for (const id of ["serial-connect", "serial-disconnect", "house-map", "device-registry", "voice-console", "actuator-console", "event-log"]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(source, /navigator\.serial\.requestPort/);
+  assert.match(source, /SerialCore\.LineParser/);
+  assert.match(source, /RegistryCore\.MODULES/);
+  assert.match(source, /VoiceCore\.parseIntent/);
+  assert.match(source, /AlertCore\.describeAlerts/);
+});
+
 test("client implements query endpoint, ack timeout and stale clearing", () => {
   const source = read("app.js");
   assert.match(source, /searchParams\.get\(["']ws["']\)/);
@@ -43,25 +56,24 @@ test("client implements query endpoint, ack timeout and stale clearing", () => {
   assert.match(source, /ContextCore\.evidenceLabel/);
 });
 
-test("stage four dashboard separates targets, mock execution and physical truth", () => {
+test("stage five dashboard separates targets, applied values and hardware verification", () => {
   const html = read("index.html");
   const source = read("app.js");
   const contextCore = read("context-core.js");
 
-  assert.match(html, /阶段 4 软件基线/);
+  assert.match(html, /阶段 5 一体化实时系统/);
   assert.match(html, /id=["']calibration-status["']/);
   assert.match(source, /telemetry\.actuatorTargets/);
   assert.match(source, /telemetry\.actuators/);
   assert.match(source, /ContextCore\.actuatorPresentation/);
-  assert.match(source, /未武装\/未应用/);
+  assert.match(source, /启动保护/);
   assert.match(source, /Mock模拟执行/);
-  assert.match(contextCore, /仅蜂鸣器测试已武装/);
-  assert.match(contextCore, /蜂鸣器与RGB测试已武装/);
+  assert.match(contextCore, /整屋自动联动/);
   assert.match(source, /calibration-status/);
   assert.doesNotMatch(html, /真板在线/);
 });
 
-test("stale clearing includes stage four actuation and calibration state", () => {
+test("stale clearing includes stage five actuation and calibration state", () => {
   const source = read("app.js");
   const clearBlock = source.split("function clearTelemetry", 2)[1];
 

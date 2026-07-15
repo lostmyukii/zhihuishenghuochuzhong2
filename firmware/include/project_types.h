@@ -60,14 +60,17 @@ enum class RgbState : uint8_t {
   Cyan,
   Yellow,
   Red,
+  Green,
+  Blue,
+  Purple,
   BlueRed,
   Gray,
 };
 
 enum class ActuatorApplyState : uint8_t {
   Unarmed,
-  PartialBuzzerTest,
-  PartialBuzzerRgbTest,
+  BootGuard,
+  FullyArmed,
 };
 
 struct SensorSample {
@@ -174,6 +177,13 @@ struct ActuatorPlan {
 
 struct ActuatorApplyResult {
   ActuatorApplyState state = ActuatorApplyState::Unarmed;
+  bool ready = false;
+  bool fanAvailable = false;
+  uint8_t fanPercent = 0;
+  bool servoAvailable = false;
+  uint8_t servoAngle = 0;
+  bool relayAvailable = false;
+  bool relayOn = false;
   bool buzzerAvailable = false;
   bool buzzerOn = false;
   bool rgbAvailable = false;

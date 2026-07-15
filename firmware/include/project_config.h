@@ -7,7 +7,7 @@ constexpr const char* PROJECT_ID = "smartlife-junior-context";
 constexpr const char* PROFILE_ID = "smartlife-junior-context-detective-v1";
 constexpr const char* DEVICE_NAME = "N16R8 无摄像头家庭情境侦探屋";
 constexpr const char* BOARD_ID = "n16r8_esp32s3";
-constexpr const char* FIRMWARE_VERSION = "0.3.2";
+constexpr const char* FIRMWARE_VERSION = "0.4.0";
 
 constexpr uint32_t SERIAL_BAUD = 115200;
 
@@ -37,9 +37,22 @@ constexpr uint16_t PROVISIONAL_MQ2_ALERT_RAW = 2600;
 constexpr uint16_t PROVISIONAL_MQ2_RECOVERY_RAW = 2400;
 constexpr uint32_t FAST_SAFETY_STALE_MS = 1500;
 constexpr uint32_t BUZZER_TEST_PULSE_MS = 800;
+constexpr uint32_t BUZZER_INTERMITTENT_MS = 500;
+constexpr uint32_t ACTUATOR_BOOT_GUARD_MS = 5000;
+constexpr uint8_t FAN_PWM_CHANNEL = 0;
+constexpr uint32_t FAN_PWM_FREQUENCY_HZ = 25000;
+constexpr uint8_t FAN_PWM_RESOLUTION_BITS = 8;
+constexpr uint16_t SERVO_MIN_PULSE_US = 500;
+constexpr uint16_t SERVO_MAX_PULSE_US = 2400;
+constexpr uint8_t SERVO_SAFE_ANGLE = 0;
+constexpr uint8_t SERVO_STUDY_ANGLE = 25;
+constexpr uint8_t SERVO_REST_ANGLE = 15;
+constexpr uint8_t SERVO_VENTILATION_ANGLE = 100;
+constexpr uint8_t SERVO_ENERGY_ANGLE = 10;
+constexpr bool RELAY_ACTIVE_HIGH = true;
 constexpr uint8_t RGB_LED_COUNT = 12;
 constexpr uint8_t RGB_TEST_ACTIVE_PIXELS = 1;
-constexpr uint8_t RGB_TEST_BRIGHTNESS = 128;
+constexpr uint8_t RGB_TEST_BRIGHTNESS = 24;
 constexpr uint32_t RGB_TEST_PULSE_MS = 5000;
 
 constexpr uint8_t FAN_LOW_PERCENT = 35;
@@ -49,10 +62,13 @@ constexpr uint8_t FAN_ALERT_PERCENT = 100;
 constexpr bool ACTUATORS_ARMED = true;
 constexpr bool BUZZER_ARMED = true;
 constexpr bool BUZZER_HARDWARE_VERIFIED = true;
-constexpr bool FAN_ARMED = false;
-constexpr bool SERVO_ARMED = false;
-constexpr bool RELAY_ARMED = false;
-constexpr bool RGB_ARMED = false;
+constexpr bool FAN_ARMED = true;
+constexpr bool SERVO_ARMED = true;
+constexpr bool RELAY_ARMED = true;
+constexpr bool RGB_ARMED = true;
+constexpr bool FAN_HARDWARE_VERIFIED = false;
+constexpr bool SERVO_HARDWARE_VERIFIED = false;
+constexpr bool RELAY_HARDWARE_VERIFIED = false;
 constexpr bool RGB_HARDWARE_VERIFIED = false;
 
 // Stage-3 starting points only. Real-board calibration must replace these values.

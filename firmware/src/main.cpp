@@ -26,6 +26,7 @@ ContextResult currentContext;
 SafetyResult currentSafety;
 ActuatorPlan currentPlan;
 ActuatorApplyResult currentApply;
+ActuatorOverride manualOverride;
 
 void writeJsonLine(JsonDocument& document) {
   serializeJson(document, Serial);
@@ -41,7 +42,8 @@ bool isAllowedMode(const char* mode) {
 
 bool isAllowedServoPosition(const char* value) {
   return value != nullptr &&
-         (strcmp(value, "study") == 0 || strcmp(value, "rest") == 0 ||
+         (strcmp(value, "hold") == 0 || strcmp(value, "study") == 0 ||
+          strcmp(value, "rest") == 0 ||
           strcmp(value, "ventilation-open") == 0 ||
           strcmp(value, "energy") == 0 ||
           strcmp(value, "safety-closed") == 0);
@@ -51,8 +53,43 @@ bool isAllowedRgbState(const char* value) {
   return value != nullptr &&
          (strcmp(value, "off") == 0 || strcmp(value, "study") == 0 ||
           strcmp(value, "orange") == 0 || strcmp(value, "blue-low") == 0 ||
-          strcmp(value, "cyan") == 0 || strcmp(value, "red") == 0 ||
+          strcmp(value, "cyan") == 0 || strcmp(value, "yellow") == 0 ||
+          strcmp(value, "red") == 0 || strcmp(value, "green") == 0 ||
+          strcmp(value, "blue") == 0 || strcmp(value, "purple") == 0 ||
           strcmp(value, "blue-red") == 0);
+}
+
+bool isAutoRequest(JsonVariantConst value) {
+  if (!value.is<const char*>()) return false;
+  const char* requested = value.as<const char*>();
+  return requested != nullptr && strcmp(requested, "auto") == 0;
+}
+
+ServoPosition servoPositionFromName(const char* value) {
+  if (strcmp(value, "study") == 0) return ServoPosition::Study;
+  if (strcmp(value, "rest") == 0) return ServoPosition::Rest;
+  if (strcmp(value, "ventilation-open") == 0) {
+    return ServoPosition::VentilationOpen;
+  }
+  if (strcmp(value, "energy") == 0) return ServoPosition::Energy;
+  if (strcmp(value, "safety-closed") == 0) {
+    return ServoPosition::SafetyClosed;
+  }
+  return ServoPosition::Hold;
+}
+
+RgbState rgbStateFromName(const char* value) {
+  if (strcmp(value, "study") == 0) return RgbState::Study;
+  if (strcmp(value, "orange") == 0) return RgbState::Orange;
+  if (strcmp(value, "blue-low") == 0) return RgbState::BlueLow;
+  if (strcmp(value, "cyan") == 0) return RgbState::Cyan;
+  if (strcmp(value, "yellow") == 0) return RgbState::Yellow;
+  if (strcmp(value, "red") == 0) return RgbState::Red;
+  if (strcmp(value, "green") == 0) return RgbState::Green;
+  if (strcmp(value, "blue") == 0) return RgbState::Blue;
+  if (strcmp(value, "purple") == 0) return RgbState::Purple;
+  if (strcmp(value, "blue-red") == 0) return RgbState::BlueRed;
+  return RgbState::Off;
 }
 
 ContextMode selectedContextMode() {
@@ -65,10 +102,13 @@ ContextMode selectedContextMode() {
 }
 
 void addStageHealth(JsonObject health) {
-  health["stage"] = "stage4-rgb-diagnosis-complete";
+  health["stage"] = "stage5-integrated-realtime";
   health["sensorsReady"] = true;
   health["actuatorsArmed"] = ACTUATORS_ARMED;
-  health["actuatorsReady"] = false;
+  health["actuatorsReady"] = currentApply.ready;
+  health["actuatorBootGuardMs"] = ACTUATOR_BOOT_GUARD_MS;
+  health["actuatorBootGuardRemainingMs"] =
+      actuatorDriver.bootGuardRemainingMs(millis());
   health["buzzerArmed"] = BUZZER_ARMED;
   health["fanArmed"] = FAN_ARMED;
   health["servoArmed"] = SERVO_ARMED;
@@ -76,12 +116,33 @@ void addStageHealth(JsonObject health) {
   health["rgbArmed"] = RGB_ARMED;
   health["rgbTestOutputPin"] = RGB_TEST_OUTPUT_PIN;
   health["buzzerHardwareVerified"] = BUZZER_HARDWARE_VERIFIED;
+  health["fanHardwareVerified"] = FAN_HARDWARE_VERIFIED;
+  health["servoHardwareVerified"] = SERVO_HARDWARE_VERIFIED;
+  health["relayHardwareVerified"] = RELAY_HARDWARE_VERIFIED;
   health["rgbHardwareVerified"] = RGB_HARDWARE_VERIFIED;
   health["actuatorApplyState"] = actuatorApplyStateName(currentApply.state);
   health["contextReady"] = true;
   health["safetyReady"] = true;
   health["hardwareVerified"] = false;
   health["calibrationRequired"] = true;
+}
+
+void applyManualOverrides(ActuatorTarget& target) {
+  if (manualOverride.fan && !currentSafety.overrideTarget.fan) {
+    target.fanPercent = manualOverride.target.fanPercent;
+  }
+  if (manualOverride.servo && !currentSafety.overrideTarget.servo) {
+    target.servoPosition = manualOverride.target.servoPosition;
+  }
+  if (manualOverride.relay && !currentSafety.overrideTarget.relay) {
+    target.relayOn = manualOverride.target.relayOn;
+  }
+  if (manualOverride.buzzer && !currentSafety.overrideTarget.buzzer) {
+    target.buzzerMode = manualOverride.target.buzzerMode;
+  }
+  if (manualOverride.rgb && !currentSafety.overrideTarget.rgb) {
+    target.rgbState = manualOverride.target.rgbState;
+  }
 }
 
 void updateDecision(uint32_t nowMs) {
@@ -93,6 +154,7 @@ void updateDecision(uint32_t nowMs) {
   currentContext = contextEngine.evaluate(snapshot, selectedContextMode());
   currentPlan = actuatorPlanner.plan(selectedContextMode(), snapshot, currentContext,
                                      currentSafety, buzzerEnabled);
+  applyManualOverrides(currentPlan.finalTarget);
   currentApply = actuatorDriver.apply(currentPlan.finalTarget, nowMs);
   decisionDirty = false;
 }
@@ -113,8 +175,11 @@ void emitHello() {
   features["contextReasoning"] = true;
   features["safetyReasoning"] = true;
   features["actuatorPlanning"] = true;
-  features["physicalActuators"] = false;
+  features["physicalActuators"] = ACTUATORS_ARMED;
   features["physicalBuzzer"] = ACTUATORS_ARMED && BUZZER_ARMED;
+  features["physicalFan"] = ACTUATORS_ARMED && FAN_ARMED;
+  features["physicalServo"] = ACTUATORS_ARMED && SERVO_ARMED;
+  features["physicalRelay"] = ACTUATORS_ARMED && RELAY_ARMED;
   features["physicalRgb"] = ACTUATORS_ARMED && RGB_ARMED;
   features["webVoiceIntent"] = true;
   features["localVoiceNlu"] = false;
@@ -263,9 +328,9 @@ void emitTelemetry() {
   targets["rgbState"] = rgbStateName(currentPlan.finalTarget.rgbState);
 
   JsonObject actuators = root["actuators"].to<JsonObject>();
-  actuators["fanPercent"] = nullptr;
-  actuators["servoAngle"] = nullptr;
-  actuators["relayOn"] = nullptr;
+  actuators["fanPercent"] = currentApply.fanPercent;
+  actuators["servoAngle"] = currentApply.servoAngle;
+  actuators["relayOn"] = currentApply.relayOn;
   if (currentApply.buzzerAvailable) {
     actuators["buzzerOn"] = currentApply.buzzerOn;
   } else {
@@ -303,6 +368,7 @@ void emitTelemetry() {
   }
   health["mq2State"] = snapshot.mq2WarmedUp ? "ready-unverified" : "warming";
   health["mq2WarmupRemainingMs"] = snapshot.mq2WarmupRemainingMs;
+  health["mq2AlertRaw"] = PROVISIONAL_MQ2_ALERT_RAW;
   health["mq2Divider"] = "required-if-powered-at-5v";
   health["waterInputLevel"] = snapshot.waterInputHigh ? "high" : "low";
   health["waterTriggerLevel"] = "high-unverified";
@@ -351,7 +417,8 @@ void emitBuzzerAck(const char* commandId, bool pulseStarted) {
   writeJsonLine(document);
 }
 
-void emitRgbAck(const char* commandId, bool pulseStarted) {
+void emitActuatorAck(const char* commandId, const char* actuatorName,
+                     bool automatic) {
   JsonDocument document;
   JsonObject root = document.to<JsonObject>();
   root["type"] = "ack";
@@ -359,14 +426,14 @@ void emitRgbAck(const char* commandId, bool pulseStarted) {
   root["id"] = commandId;
   root["ok"] = true;
   JsonObject applied = root["applied"].to<JsonObject>();
+  applied["manualOverride"] = automatic ? "auto" : actuatorName;
+  applied["actuator"] = actuatorName;
+  applied["fanPercent"] = currentApply.fanPercent;
+  applied["servoAngle"] = currentApply.servoAngle;
+  applied["relayOn"] = currentApply.relayOn;
+  applied["buzzerOn"] = currentApply.buzzerOn;
   applied["rgbState"] = rgbStateName(currentApply.rgbState);
-  if (pulseStarted) {
-    applied["rgbPulseMs"] = RGB_TEST_PULSE_MS;
-    applied["rgbBrightness"] = RGB_TEST_BRIGHTNESS;
-    applied["rgbPixels"] = RGB_TEST_ACTIVE_PIXELS;
-    applied["rgbRingPixels"] = RGB_LED_COUNT;
-    applied["rgbOutputPin"] = RGB_TEST_OUTPUT_PIN;
-  }
+  applied["safetyOverride"] = currentSafety.overrideActive;
   writeJsonLine(document);
 }
 
@@ -375,20 +442,23 @@ bool validActuatorCommand(JsonObjectConst actuator) {
     return false;
   }
   if (!actuator["fan"].isNull()) {
+    if (isAutoRequest(actuator["fan"])) return true;
     if (!actuator["fan"].is<int>()) return false;
     const int value = actuator["fan"].as<int>();
     return value >= 0 && value <= 100;
   }
   if (!actuator["servo"].isNull()) {
+    if (isAutoRequest(actuator["servo"])) return true;
     return isAllowedServoPosition(actuator["servo"].as<const char*>());
   }
   if (!actuator["relay"].isNull()) {
-    return actuator["relay"].is<bool>();
+    return actuator["relay"].is<bool>() || isAutoRequest(actuator["relay"]);
   }
   if (!actuator["buzzer"].isNull()) {
-    return actuator["buzzer"].is<bool>();
+    return actuator["buzzer"].is<bool>() || isAutoRequest(actuator["buzzer"]);
   }
   if (!actuator["rgb"].isNull()) {
+    if (isAutoRequest(actuator["rgb"])) return true;
     return isAllowedRgbState(actuator["rgb"].as<const char*>());
   }
   return false;
@@ -460,20 +530,79 @@ void handleCommandLine(const String& line) {
     emitAck(commandId, false, "actuators_unarmed");
     return;
   }
+  if (!currentApply.ready) {
+    emitAck(commandId, false, "actuators_boot_guard");
+    return;
+  }
+  const uint32_t nowMs = millis();
+  if (!actuator["fan"].isNull()) {
+    const bool automatic = isAutoRequest(actuator["fan"]);
+    manualOverride.fan = !automatic;
+    if (!automatic) {
+      manualOverride.target.fanPercent = actuator["fan"].as<uint8_t>();
+    }
+    decisionDirty = true;
+    updateDecision(nowMs);
+    emitActuatorAck(commandId, "fan", automatic);
+    emitTelemetry();
+    lastTelemetryAt = nowMs;
+    return;
+  }
+  if (!actuator["servo"].isNull()) {
+    const bool automatic = isAutoRequest(actuator["servo"]);
+    manualOverride.servo = !automatic;
+    if (!automatic) {
+      manualOverride.target.servoPosition =
+          servoPositionFromName(actuator["servo"].as<const char*>());
+    }
+    decisionDirty = true;
+    updateDecision(nowMs);
+    emitActuatorAck(commandId, "servo", automatic);
+    emitTelemetry();
+    lastTelemetryAt = nowMs;
+    return;
+  }
+  if (!actuator["relay"].isNull()) {
+    const bool automatic = isAutoRequest(actuator["relay"]);
+    manualOverride.relay = !automatic;
+    if (!automatic) {
+      manualOverride.target.relayOn = actuator["relay"].as<bool>();
+    }
+    decisionDirty = true;
+    updateDecision(nowMs);
+    emitActuatorAck(commandId, "relay", automatic);
+    emitTelemetry();
+    lastTelemetryAt = nowMs;
+    return;
+  }
   if (!actuator["buzzer"].isNull()) {
     if (!BUZZER_ARMED) {
       emitAck(commandId, false, "actuators_unarmed");
       return;
     }
+    const bool automatic = isAutoRequest(actuator["buzzer"]);
+    if (automatic) {
+      manualOverride.buzzer = false;
+      decisionDirty = true;
+      updateDecision(nowMs);
+      emitActuatorAck(commandId, "buzzer", true);
+      emitTelemetry();
+      lastTelemetryAt = nowMs;
+      return;
+    }
     const bool pulseRequested = actuator["buzzer"].as<bool>();
     if (pulseRequested) {
-      currentApply = actuatorDriver.requestBuzzerPulse(millis());
+      currentApply = actuatorDriver.requestBuzzerPulse(nowMs);
     } else {
       currentApply = actuatorDriver.stopBuzzer();
+      manualOverride.buzzer = true;
+      manualOverride.target.buzzerMode = BuzzerMode::Off;
+      decisionDirty = true;
+      updateDecision(nowMs);
     }
     emitBuzzerAck(commandId, pulseRequested);
     emitTelemetry();
-    lastTelemetryAt = millis();
+    lastTelemetryAt = nowMs;
     return;
   }
   if (!actuator["rgb"].isNull()) {
@@ -481,22 +610,20 @@ void handleCommandLine(const String& line) {
       emitAck(commandId, false, "actuators_unarmed");
       return;
     }
-    const char* requestedState = actuator["rgb"].as<const char*>();
-    const bool pulseRequested = strcmp(requestedState, "red") == 0;
-    if (pulseRequested) {
-      currentApply = actuatorDriver.requestRgbTestPulse(millis());
-    } else if (strcmp(requestedState, "off") == 0) {
-      currentApply = actuatorDriver.stopRgb();
-    } else {
-      emitAck(commandId, false, "rgb_test_state_only");
-      return;
+    const bool automatic = isAutoRequest(actuator["rgb"]);
+    manualOverride.rgb = !automatic;
+    if (!automatic) {
+      manualOverride.target.rgbState =
+          rgbStateFromName(actuator["rgb"].as<const char*>());
     }
-    emitRgbAck(commandId, pulseRequested);
+    decisionDirty = true;
+    updateDecision(nowMs);
+    emitActuatorAck(commandId, "rgb", automatic);
     emitTelemetry();
-    lastTelemetryAt = millis();
+    lastTelemetryAt = nowMs;
     return;
   }
-  emitAck(commandId, false, "actuators_unarmed");
+  emitAck(commandId, false, "invalid_actuator_command");
 }
 
 void pollSerial() {
@@ -546,6 +673,8 @@ void loop() {
   }
   if (actuatorDriver.tick(now)) {
     currentApply = actuatorDriver.result();
+    decisionDirty = true;
+    updateDecision(now);
     emitTelemetry();
     lastTelemetryAt = now;
   }

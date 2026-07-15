@@ -24,25 +24,24 @@
 
 ## 当前阶段
 
-阶段0至阶段4软件基线已经完成，并已完成GPIO13有源蜂鸣器真板验收和RGB诊断。当前开发板运行安全PIO固件`0.3.2`；RGB在GPIO13交叉诊断时可见点亮，但接回正式GPIO46后无可见输出，因此RGB仍未武装、未验收；风扇、舵机和继电器也保持未武装、未验收。
+阶段0至阶段5软件基线已经完成；源码固件为`0.4.0`，但尚未写入真板。当前开发板最后一次临时诊断状态可能仍是`0.3.3-rc1-gpio46-buzzer-diagnostic`，不能假定板上已经恢复到仓库安全版，也不能在现有全硬件连接状态下发送任何执行器命令。
 
-- 固件版本为`0.3.2`，按200ms采集快速输入、按2000ms读取DHT，并输出数值、有效性、数据年龄、情境候选、固定证据代码、安全状态、逻辑动作目标和物理执行状态。
-- DHT最近有效值最多保留6000ms；MQ2在启动后30000ms内只标记预热；水滴和火焰使用连续3帧确认及连续3帧恢复。
-- MQ2暂定报警/恢复阈值为 `2600/2400`，使用连续3个新采样确认；快速安全输入超过1500ms未更新时进入传感器故障判断。以上仍是待实物复核的基线。
-- `ACTUATORS_ARMED=true`只允许进入逐项验收路径；`BUZZER_ARMED=true`且`BUZZER_HARDWARE_VERIFIED=true`，其他四个独立开关仍为`false`。RGB诊断代码保留但`RGB_ARMED=false`，运行时不初始化或写GPIO46；GPIO11/9/12也不得初始化或输出。
-- GPIO13按高电平有效处理：初始化时先写`LOW`再设为输出，上电静音；`actuator.buzzer=true`触发约800ms非阻塞短鸣并自动回到`LOW`，`false`立即停止。
-- `actuators.buzzerOn`可为真实`true/false`；风扇、舵机、继电器和RGB实际值仍为`null`。`actuatorsReady=false`继续表示整组执行器尚未完成。
-- `safetyReady=true`只表示安全软件判断已通过测试；安全规划中的`alarm/intermittent`尚未自动映射到物理蜂鸣器。全项目仍保留`hardwareVerified=false`、`calibrationRequired=true`。
-- 安全优先级固定为火焰 > MQ2 > 水滴 > 传感器故障；火焰必须覆盖MQ2排风并停止风扇，水滴不得启动风扇或舵机，静音只关闭声音而不删除风险或其他保护目标。
-- 阈值和水滴/火焰高电平触发都只是待实物验证的起始基线；遥测必须保留 `hardwareVerified=false`、`calibrationRequired=true`。
-- `tools/n16r8_gateway.py --mock-board` 只产生显式 `mock=true` 的模拟数据，不得把它描述为真板采样。
-- Dashboard只有在收到新鲜mock `telemetry` 时才能显示“模拟板在线”；真板当前显示“仅蜂鸣器测试已武装”，其他执行器显示“未武装/未应用”。WebSocket已连接、页面已渲染或收到旧数据都不等于真板在线。
-- 本轮硬件验收完成后，当前只运行契约测试和 `pio run` 编译，并可运行阶段2的本地mock网关与静态Dashboard；未经新的明确授权，不再执行`upload`、`write_flash`、`erase_flash`、串口烧录或固件恢复。
-- 未经用户再次明确授权，不接触开发板Flash、NVS、Wi-Fi或小智激活数据。
+- `0.4.0`按200ms采集快速输入、按2000ms读取DHT，并输出数值、有效性、数据年龄、情境证据、安全判断、逻辑动作目标和真实驱动状态。
+- DHT最近有效值最多保留6000ms；MQ2预热30000ms；水滴和火焰使用连续3帧确认及3帧恢复。MQ2暂定报警/恢复阈值`2600/2400`、水滴/火焰触发电平和其他阈值仍待真板复核。
+- 五个执行器驱动均已进入软件基线：GPIO11风扇25kHz/8位PWM、GPIO9舵机、GPIO12低压LED继电器、GPIO13有源蜂鸣器、GPIO46 12颗GRB灯环。`ACTUATORS_ARMED`及五个独立开关均为`true`。
+- 上电先应用风扇0%、继电器断开、蜂鸣器LOW、RGB熄灭和舵机安全位置，保持`ACTUATOR_BOOT_GUARD_MS=5000`；保护窗结束前`actuatorsReady=false`且物理执行器命令返回`actuators_boot_guard`。
+- `BUZZER_HARDWARE_VERIFIED=true`沿用既有GPIO13人工证据；风扇、舵机、继电器和RGB均为`HardwareVerified=false`。特别是RGB虽然参与软件联动，GPIO46仍没有人工可见亮灯证据。
+- 安全优先级固定为火焰 > MQ2 > 水滴 > 传感器故障；手动覆盖不能覆盖相同执行器的安全目标。`buzzerEnabled=false`只静音声音，不删除风险或其他保护动作。
+- Web Serial是主连接路线；`tools/n16r8_gateway.py`是真CH340备用路线，`--mock-board`只产生显式`mock=true`的数据。WebSocket在线、USB已授权、页面已渲染或旧遥测都不等于开发板数据在线。
+- Dashboard必须分开显示计划目标、实际应用、Mock模拟执行、启动保护和硬件验收状态；3500ms没有新鲜遥测后清除旧结论。
+- 当前只允许契约测试、`pio run`纯编译、本地Mock网关与静态Dashboard。外接电池关闭、高电流负载安全断开且用户再次明确授权前，不执行上传、串口采样或真板控制。
+- 任何后续PIO应用写入仍只允许`0x10000`，写后独立校验；不得擦除或覆盖bootloader、分区表、NVS、Wi-Fi或小智激活数据。
 
 2026-07-15 GPIO13验收证据：Python 25项、Node 17项测试通过；PlatformIO显示`[SUCCESS]`，RAM使用`19324 / 327680 bytes`，Flash使用`299385 / 6553600 bytes`。候选应用和最终应用均只写PIO应用区`0x10000`并独立出现`verify OK (digest matched)`；真板确认上电静音、800ms单次可听短鸣、自动停止、显式停止回执，以及风扇命令被`actuators_unarmed`拒绝。
 
 2026-07-15 RGB诊断证据：灯环端丝印为字母`SI`输入和`SO`输出，不能写成数字`S1/S0`。信号改接`SI`后，同一灯环和线材在GPIO13可见点亮；接回GPIO46时，候选固件同ID回执、红色状态、约4.98秒自动关闭和显式关闭均正常，但人工未见亮灯。最终`0.3.2`已恢复`RGB_ARMED=false`、`RGB_HARDWARE_VERIFIED=false`，真板`rgbState=null`且RGB命令被`actuators_unarmed`拒绝。安全版Python 26项、Node 18项和PIO编译通过，应用区校验为`verify OK (digest matched)`。
+
+2026-07-15阶段5软件证据：Python 30项、Node 28项全部通过；JavaScript语法检查通过；本地浏览器完成Mock模式、MQ2安全覆盖、手动风扇、安全静音、同ID回执及390px布局验证；PlatformIO纯编译`[SUCCESS]`，RAM`19712 / 327680 bytes`（6.0%），Flash`325881 / 6553600 bytes`（5.0%）。本次没有上传、串口监视或占用USB。
 
 阶段2固定本地端口：WebSocket网关 `127.0.0.1:18766`，静态Dashboard `127.0.0.1:18767`。标准启动命令：
 
@@ -136,13 +135,13 @@ idf.py flash
 启动身份：
 
 ```json
-{"type":"hello","project":"smartlife-junior-context","profileId":"smartlife-junior-context-detective-v1","board":"n16r8_esp32s3","firmware":"0.3.2","baud":115200,"rfid":false,"features":{"contextReasoning":true,"safetyReasoning":true,"actuatorPlanning":true,"physicalActuators":false,"physicalBuzzer":true,"physicalRgb":false,"webVoiceIntent":true,"localVoiceNlu":false,"mcp":false}}
+{"type":"hello","project":"smartlife-junior-context","profileId":"smartlife-junior-context-detective-v1","board":"n16r8_esp32s3","firmware":"0.4.0","baud":115200,"rfid":false,"features":{"contextReasoning":true,"safetyReasoning":true,"actuatorPlanning":true,"physicalActuators":true,"physicalBuzzer":true,"physicalFan":true,"physicalServo":true,"physicalRelay":true,"physicalRgb":true,"webVoiceIntent":true,"localVoiceNlu":false,"mcp":false}}
 ```
 
-阶段4遥测必须区分逻辑动作目标、物理实际值和实物尚未验收。以下数值只展示字段结构，不是标定结果：
+阶段5遥测必须区分逻辑动作目标、物理实际值和实物尚未验收。以下数值只展示字段结构，不是标定结果：
 
 ```json
-{"type":"telemetry","project":"smartlife-junior-context","mode":"detect","sensors":{"light":0,"sound":0,"temperature":null,"humidity":null,"pir":false,"keypad":0,"mq2":0,"water":false,"flame":false},"sensorValid":{},"sensorAgeMs":{},"context":{"candidate":"detect","coverage":0,"match":0,"status":"unknown","supporting":[],"opposing":[],"missing":[]},"actuatorTargets":{"fanPercent":0,"servoPosition":"hold","relayOn":false,"buzzerMode":"off","rgbState":"off"},"actuators":{"fanPercent":null,"servoAngle":null,"relayOn":null,"buzzerOn":false,"rgbState":null},"alerts":[],"safety":{"state":"normal","primary":"none","causes":[],"overrideActive":false,"buzzerRequested":false,"buzzerMuted":false},"health":{"stage":"stage4-rgb-diagnosis-complete","sensorsReady":true,"actuatorsArmed":true,"actuatorsReady":false,"buzzerArmed":true,"fanArmed":false,"servoArmed":false,"relayArmed":false,"rgbArmed":false,"buzzerHardwareVerified":true,"rgbHardwareVerified":false,"actuatorApplyState":"partial-buzzer-test","contextReady":true,"safetyReady":true,"hardwareVerified":false,"calibrationRequired":true}}
+{"type":"telemetry","project":"smartlife-junior-context","mode":"detect","sensors":{"light":0,"sound":0,"temperature":null,"humidity":null,"pir":false,"keypad":0,"mq2":0,"water":false,"flame":false},"sensorValid":{},"sensorAgeMs":{},"context":{"candidate":"detect","coverage":0,"match":0,"status":"unknown","supporting":[],"opposing":[],"missing":[]},"actuatorTargets":{"fanPercent":0,"servoPosition":"hold","relayOn":false,"buzzerMode":"off","rgbState":"off"},"actuators":{"fanPercent":0,"servoAngle":0,"relayOn":false,"buzzerOn":false,"rgbState":"off"},"alerts":[],"safety":{"state":"normal","primary":"none","causes":[],"overrideActive":false,"buzzerRequested":false,"buzzerMuted":false},"health":{"stage":"stage5-integrated-realtime","sensorsReady":true,"actuatorsArmed":true,"actuatorsReady":true,"buzzerArmed":true,"fanArmed":true,"servoArmed":true,"relayArmed":true,"rgbArmed":true,"buzzerHardwareVerified":true,"fanHardwareVerified":false,"servoHardwareVerified":false,"relayHardwareVerified":false,"rgbHardwareVerified":false,"actuatorApplyState":"fully-armed","contextReady":true,"safetyReady":true,"hardwareVerified":false,"calibrationRequired":true}}
 ```
 
 当前固件只接受六个模式名：
@@ -190,7 +189,7 @@ node --check dashboard/context-core.js
 node --check dashboard/app.js
 ```
 
-阶段3和阶段4软件验证命令：
+阶段3至阶段5软件验证命令：
 
 ```bash
 python3 -m unittest discover -s tools -p 'test_*.py' -v
@@ -213,4 +212,4 @@ PLATFORMIO_SETTING_ENABLE_TELEMETRY=no \
 
 ## 下一阶段顺序
 
-阶段4真板验收已完成蜂鸣器；RGB在GPIO46处诊断未通过并已安全回退。下一步不是直接进入风扇，而是先在新授权下检查GPIO46基础输出/拓展板链路，或正式评审RGB改用其他GPIO并同步全部合同。未经对应实物验收，不得把RGB开关改为`true`，也不得声称物理执行成功。下一次Flash或物理测试仍需用户明确授权。
+阶段5软件基线完成后的下一步是真板安全门与完整固件验收。必须先确认外接风扇电池关闭、高电流负载安全断开、Web Serial已释放USB，并重新取得应用区烧录、独立校验和串口采样授权；随后才能把`0.4.0`写入`0x10000`。烧录后先只观察5秒启动保护和静态遥测，再按用户指令逐项启用低压负载。完成实物证据前不得把风扇、舵机、继电器或RGB写成已验收，也不得声称整屋物理联动已经通过。
