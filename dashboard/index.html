@@ -4,123 +4,211 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#10243e" />
     <title>N16R8 无摄像头家庭情境侦探屋</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <a class="brand" href="#overview" aria-label="返回总览">
-          <span class="brand-mark" aria-hidden="true">⌖</span>
-          <span><small>N16R8 · 阶段 5 一体化实时系统</small><strong>家庭情境侦探屋</strong></span>
+        <a class="brand" href="#overview" aria-label="返回侦探总览">
+          <span class="brand-mark" aria-hidden="true">⌂</span>
+          <span class="brand-copy"><small>无摄像头 · 非录音 · 多源环境证据</small><strong>N16R8 无摄像头家庭情境侦探屋</strong></span>
         </a>
-        <nav aria-label="页面导航">
-          <a href="#overview">侦探总览</a><a href="#sensors">线索数据</a><a href="#controls">场景联动</a><a href="#voice-console">网页语音</a><a href="#device-registry">设备注册</a><a href="#event-log">记录</a>
+        <nav class="workbench-nav" aria-label="主要工作台">
+          <a href="#overview">侦探总览</a>
+          <a href="#registry">设备注册</a>
+          <a href="#linkage">情境联动</a>
+          <a href="#voice">网页语音</a>
+          <a href="#debug">调试台</a>
+          <a href="#logs">数据日志</a>
         </nav>
       </header>
 
       <section class="truth-strip" aria-label="实时链路状态">
         <div><span>开发板</span><strong id="board-status" data-state="waiting">等待实时数据</strong></div>
-        <div><span>Web Serial</span><strong id="usb-status" data-state="muted">未连接</strong></div>
+        <div><span>Web Serial / USB</span><strong id="usb-status" data-state="muted">未连接</strong></div>
         <div><span>WebSocket</span><strong id="ws-status" data-state="waiting">连接中</strong></div>
         <div><span>MQTT</span><strong id="mqtt-status" data-state="muted">后续接入</strong></div>
-        <div><span>数据流</span><strong id="data-status" data-state="waiting">等待</strong></div>
+        <div><span>数据源</span><strong id="source-status" data-state="waiting">无实时数据</strong></div>
         <div><span>当前情境</span><strong id="current-mode-pill" data-state="accent">情境侦探</strong></div>
+        <div><span>最后遥测</span><strong id="telemetry-age" data-state="waiting">—</strong></div>
       </section>
 
-      <main id="overview" class="workspace">
-        <section class="case-board panel">
-          <div class="case-heading">
-            <div><p class="eyebrow">LIVE CASE FILE / 实时案件板</p><h1 id="context-title">等待家庭线索</h1><p id="context-description">不使用摄像头，只组合环境数据解释当前情境。</p></div>
-            <div class="score-pair"><div><span>证据覆盖</span><strong id="coverage-value">—</strong></div><div><span>情境匹配</span><strong id="match-value">—</strong></div></div>
-          </div>
+      <main>
+        <section id="overview" class="workbench" data-workbench="overview" aria-labelledby="overview-title">
+          <h1 id="overview-title" class="sr-only">侦探总览</h1>
+
+          <ol id="evidence-rail" class="evidence-rail" aria-label="环境证据处理流程">
+            <li data-evidence-step="collect"><span>1</span><strong>真实采集</strong></li>
+            <li data-evidence-step="reason"><span>2</span><strong>情境推理</strong></li>
+            <li data-evidence-step="control"><span>3</span><strong>控制来源</strong></li>
+            <li data-evidence-step="act"><span>4</span><strong>联动结果</strong></li>
+            <li data-evidence-step="record"><span>5</span><strong>事件记录</strong></li>
+          </ol>
+
           <div id="alert-banner" class="alert-banner" role="status" aria-live="polite" aria-atomic="true" hidden></div>
-          <div id="house-map" class="house-map" aria-label="家庭情境热区">
-            <article data-room="kitchen"><span>厨房</span><strong>MQ2 · 火焰</strong><small>GPIO2 / 45</small></article>
-            <article data-room="bathroom"><span>卫生间</span><strong>漏水线索</strong><small>GPIO8</small></article>
-            <article data-room="living"><span>客厅</span><strong>温湿度 · 风扇 · 按键</strong><small>GPIO14 / 11 / 10</small></article>
-            <article data-room="study"><span>书房</span><strong>光照 · 声音 · LED</strong><small>GPIO1 / 4 / 12</small></article>
-            <article data-room="bedroom"><span>卧室</span><strong>舵机窗 · RGB</strong><small>GPIO9 / 46</small></article>
-            <article data-room="entry"><span>门厅</span><strong>PIR 人体活动</strong><small>GPIO5</small></article>
+
+          <div class="overview-grid">
+            <section class="panel clue-panel" aria-labelledby="clue-title">
+              <div class="section-heading">
+                <div><p class="eyebrow">LIVE CLUES</p><h2 id="clue-title">真实采集</h2></div>
+                <span id="sensor-summary" class="tag">等待数据</span>
+              </div>
+              <p class="section-note">先看核心生活线索，再看额外输入；每项保留GPIO、有效性和数据年龄。</p>
+
+              <div id="primary-sensors" class="primary-sensors" aria-label="核心生活线索">
+                <article class="sensor-card" data-sensor="temperature"><span>温度 · GPIO14</span><strong id="sensor-temperature">—</strong><small id="valid-temperature">等待</small></article>
+                <article class="sensor-card" data-sensor="humidity"><span>湿度 · GPIO14</span><strong id="sensor-humidity">—</strong><small id="valid-humidity">等待</small></article>
+                <article class="sensor-card" data-sensor="sound"><span>声音 · GPIO4</span><strong id="sensor-sound">—</strong><em>相对强度</em><small id="valid-sound">等待</small></article>
+                <article class="sensor-card" data-sensor="pir"><span>人体感应 · GPIO5</span><strong id="sensor-pir">—</strong><small id="valid-pir">等待</small></article>
+              </div>
+
+              <details id="secondary-sensor-details" class="secondary-sensor-details" open>
+                <summary>额外环境与安全线索 <span>5项</span></summary>
+                <div id="secondary-sensors" class="secondary-sensors" aria-label="额外环境与安全线索">
+                  <article class="sensor-row" data-sensor="light"><span>光照 · GPIO1</span><strong id="sensor-light">—</strong><small id="valid-light">等待</small></article>
+                  <article class="sensor-row" data-sensor="keypad"><span>8键AD · GPIO10</span><strong id="sensor-keypad">—</strong><small id="valid-keypad">等待</small></article>
+                  <article class="sensor-row" data-sensor="mq2"><span>MQ2 · GPIO2</span><strong id="sensor-mq2">—</strong><em>原始ADC，不等同空气质量</em><small id="valid-mq2">等待</small></article>
+                  <article class="sensor-row" data-sensor="water"><span>水滴 · GPIO8</span><strong id="sensor-water">—</strong><small id="valid-water">等待</small></article>
+                  <article class="sensor-row" data-sensor="flame"><span>火焰 · GPIO45</span><strong id="sensor-flame">—</strong><small id="valid-flame">等待</small></article>
+                </div>
+              </details>
+            </section>
+
+            <section class="panel reasoning-panel" aria-labelledby="reasoning-title">
+              <div class="case-heading">
+                <div><p class="eyebrow">EXPLAINABLE REASONING</p><h2 id="reasoning-title">情境推理</h2><h3 id="context-title">等待家庭线索</h3><p id="context-description">不使用摄像头，只组合环境数据解释当前情境。</p></div>
+                <div class="confidence-pair"><div><span>证据覆盖</span><strong id="coverage-value">—</strong></div><div><span>情境匹配</span><strong id="match-value">—</strong></div></div>
+              </div>
+              <span id="context-status" class="tag">等待判断</span>
+
+              <div id="house-map" class="house-map" aria-label="家庭情境线索地图">
+                <article data-room="study"><span>书房</span><strong>光照 · 声音 · LED</strong><small>GPIO1 / 4 / 12</small></article>
+                <article data-room="living"><span>客厅</span><strong>温湿度 · 风扇 · 按键</strong><small>GPIO14 / 11 / 10</small></article>
+                <article data-room="kitchen"><span>厨房</span><strong>MQ2 · 火焰</strong><small>GPIO2 / 45</small></article>
+                <article data-room="entry"><span>门厅</span><strong>PIR 人体活动</strong><small>GPIO5</small></article>
+                <article class="verdict-room"><span>当前判断</span><strong id="house-verdict">等待证据</strong><small>证据不足时不强行下结论</small></article>
+                <article data-room="bathroom"><span>卫生间</span><strong>水滴线索</strong><small>GPIO8</small></article>
+                <article data-room="bedroom"><span>卧室</span><strong>舵机窗 · RGB</strong><small>GPIO9 / 46</small></article>
+              </div>
+
+              <div class="evidence-grid">
+                <div><h3>支持证据</h3><ul id="supporting-list"><li>等待实时数据</li></ul></div>
+                <div><h3>反向证据</h3><ul id="opposing-list"><li>—</li></ul></div>
+                <div><h3>缺失证据</h3><ul id="missing-list"><li>—</li></ul></div>
+              </div>
+            </section>
+
+            <section class="panel action-panel" aria-labelledby="action-title">
+              <div class="section-heading">
+                <div><p class="eyebrow">CONTROL → ACTUAL</p><h2 id="action-title">控制来源与联动结果</h2></div>
+                <span id="pending-count" class="tag">0</span>
+              </div>
+
+              <div id="control-sources" class="control-sources" aria-label="三种控制来源">
+                <article><span>8键AD</span><strong id="source-keypad">尚无按键命令</strong><small>GPIO10 · 待映射闭环</small></article>
+                <article><span>网页控制</span><strong id="source-web">尚未发送命令</strong><small>等待同ID ACK</small></article>
+                <article><span>网页语义</span><strong id="source-voice">尚未解析语义</strong><small>网页白名单转换</small></article>
+              </div>
+
+              <div class="truth-table-heading"><strong>计划动作</strong><strong>真实状态</strong><span>实物证据</span></div>
+              <div id="actuator-truth-table" class="actuator-truth-table" aria-label="执行器计划与真实状态">
+                <article data-actuator-row="fan"><header>风扇 · GPIO11</header><span id="actuator-plan-fan">—</span><strong id="actuator-actual-fan">—</strong><em id="actuator-verify-fan">待实物验收</em><small id="actuator-fan" hidden>—</small></article>
+                <article data-actuator-row="servo"><header>舵机 · GPIO9</header><span id="actuator-plan-servo">—</span><strong id="actuator-actual-servo">—</strong><em id="actuator-verify-servo">待实物验收</em><small id="actuator-servo" hidden>—</small></article>
+                <article data-actuator-row="relay"><header>继电器LED · GPIO12</header><span id="actuator-plan-relay">—</span><strong id="actuator-actual-relay">—</strong><em id="actuator-verify-relay">待实物验收</em><small id="actuator-relay" hidden>—</small></article>
+                <article data-actuator-row="buzzer"><header>蜂鸣器 · GPIO13</header><span id="actuator-plan-buzzer">—</span><strong id="actuator-actual-buzzer">—</strong><em id="actuator-verify-buzzer">待实物验收</em><small id="actuator-buzzer" hidden>—</small></article>
+                <article data-actuator-row="rgb"><header>RGB灯环 · GPIO46</header><span id="actuator-plan-rgb">—</span><strong id="actuator-actual-rgb">—</strong><em id="actuator-verify-rgb">待实物验收</em><small id="actuator-rgb" hidden>—</small></article>
+              </div>
+
+              <dl class="current-state">
+                <div><dt>安全状态</dt><dd id="safety-state">—</dd></div>
+                <div><dt>校准状态</dt><dd id="calibration-status">—</dd></div>
+                <div><dt>最近回执</dt><dd id="ack-summary" data-state="waiting">尚未发送命令</dd></div>
+              </dl>
+
+              <div class="recent-heading"><h3>最近事件</h3><a href="#logs">查看完整日志</a></div>
+              <ol id="recent-events" class="event-list"><li><time>—</time><span>等待实时链路</span></li></ol>
+            </section>
           </div>
+
+          <details class="panel connection-center" open>
+            <summary class="section-heading">
+              <div><p class="eyebrow">CONNECTION CENTER</p><h2 id="connection-title">连接中心</h2></div>
+              <span id="source-label" class="tag">等待数据来源</span>
+            </summary>
+            <div class="connection-grid">
+              <div><span>Web Serial 主链路</span><strong>Chrome / Edge · 115200</strong><div class="button-row"><button id="serial-connect" class="primary" type="button">连接开发板</button><button id="serial-disconnect" type="button" disabled>断开</button></div></div>
+              <div><span>Python WebSocket 备用</span><strong id="ws-endpoint">—</strong><small>同一时刻不要与Web Serial共同占用CH340</small></div>
+              <div><span>公网扩展</span><strong>WSS / MQTT 后续接入</strong><small>没有真实服务时保持未配置</small></div>
+            </div>
+          </details>
         </section>
 
-        <aside class="right-rail">
-          <article class="panel connection-card">
-            <div class="section-heading"><div><p class="eyebrow">USB DIRECT</p><h2>连接开发板</h2></div><span id="source-label" class="tag">等待数据来源</span></div>
-            <p>Chrome/Edge 点击授权后直接读取 CH340，速率 115200。</p>
-            <div class="button-row"><button id="serial-connect" class="primary" type="button">连接开发板</button><button id="serial-disconnect" type="button" disabled>断开</button></div>
-            <small id="ws-endpoint">—</small>
-          </article>
+        <section id="registry" class="workbench" data-workbench="registry" aria-labelledby="registry-title" hidden>
+          <section id="device-registry" class="panel">
+            <div class="section-heading"><div><p class="eyebrow">DEVICE REGISTRY</p><h1 id="registry-title">设备注册</h1></div><button id="registry-save" class="primary" type="button">保存本地注册</button></div>
+            <p class="section-note">主板身份 → 固定GPIO → 13模块 → 房间归类 → 情境绑定。云端尚未配置，不显示同步成功。</p>
+            <div class="registry-steps" aria-label="设备注册步骤"><span>1 主板身份</span><span>2 固定端口</span><span>3 模块选择</span><span>4 房间归类</span><span>5 情境绑定</span></div>
+            <div id="registry-grid" class="registry-grid"></div>
+          </section>
+        </section>
 
-          <article id="voice-console" class="panel">
-            <div class="section-heading"><div><p class="eyebrow">WEB VOICE</p><h2>网页语义入口</h2></div><span class="tag">白名单</span></div>
-            <p>自然语句在网页端转为标准命令，主板不运行本地语义模型。</p>
+        <section id="linkage" class="workbench" data-workbench="linkage" aria-labelledby="linkage-title" hidden>
+          <section class="panel">
+            <div class="section-heading"><div><p class="eyebrow">SCENE LINKAGE</p><h1 id="linkage-title">情境联动</h1></div><span class="tag">安全覆盖优先</span></div>
+            <p class="section-note">六种板端合法情境共用同一命令合同，模式切换后等待同ID ACK与新遥测。</p>
+            <div id="mode-controls" class="mode-grid"><button data-mode="detect">情境侦探</button><button data-mode="study">专注学习</button><button data-mode="rest">安心休息</button><button data-mode="ventilation">通风换气</button><button data-mode="energy">无人节能</button><button data-mode="custom">自定义</button></div>
+            <div class="subsection-heading"><h2>Mock安全场景</h2><small>只对明确的模拟数据开放</small></div>
+            <div id="scenario-controls" class="scenario-grid"><button data-scenario="normal" disabled>正常Mock</button><button data-scenario="mq2" disabled>MQ2 Mock</button><button data-scenario="water" disabled>漏水Mock</button><button data-scenario="flame" disabled>火焰Mock</button></div>
+            <article class="future-card"><strong>阈值调整</strong><p>批次C接入板端白名单与同ID ACK；当前不放置无响应滑块。</p></article>
+          </section>
+        </section>
+
+        <section id="voice" class="workbench" data-workbench="voice" aria-labelledby="voice-title" hidden>
+          <section id="voice-console" class="panel">
+            <div class="section-heading"><div><p class="eyebrow">WEB VOICE</p><h1 id="voice-title">网页语音</h1></div><span class="tag">浏览器白名单</span></div>
+            <p class="section-note">自然语句在网页端转为标准命令，主板不运行本地语义模型或MCP。</p>
             <label class="voice-input"><span>文本测试</span><input id="voice-text" value="我要专心写作业" /></label>
             <div class="button-row"><button id="voice-submit" class="primary" type="button">解析并执行</button><button data-voice-quick="房间有点闷，帮我通风" type="button">通风情境</button><button data-voice-quick="蜂鸣器静音" type="button">蜂鸣静音</button></div>
             <div id="voice-result" class="inline-status">尚未解析</div>
-          </article>
-
-          <article class="panel current-card">
-            <div class="section-heading"><div><p class="eyebrow">CURRENT STATE</p><h2>当前状态</h2></div><span id="telemetry-age" class="tag">—</span></div>
-            <dl><div><dt>安全</dt><dd id="safety-state">—</dd></div><div><dt>启动状态</dt><dd id="calibration-status">—</dd></div><div><dt>待处理命令</dt><dd id="pending-count">0</dd></div><div><dt>最近回执</dt><dd id="ack-summary" data-state="waiting">尚未发送命令</dd></div></dl>
-          </article>
-        </aside>
-
-        <section id="sensors" class="panel full-width">
-          <div class="section-heading"><div><p class="eyebrow">CLUE STREAM</p><h2>环境线索实时自检</h2></div><span id="context-status" class="tag">—</span></div>
-          <div class="sensor-grid">
-            <article data-sensor="light"><span>光敏 · GPIO1</span><strong id="sensor-light">—</strong><small id="valid-light">等待</small></article>
-            <article data-sensor="sound"><span>声音 · GPIO4</span><strong id="sensor-sound">—</strong><small id="valid-sound">等待</small></article>
-            <article data-sensor="temperature"><span>温度 · GPIO14</span><strong id="sensor-temperature">—</strong><small id="valid-temperature">等待</small></article>
-            <article data-sensor="humidity"><span>湿度 · GPIO14</span><strong id="sensor-humidity">—</strong><small id="valid-humidity">等待</small></article>
-            <article data-sensor="pir"><span>PIR · GPIO5</span><strong id="sensor-pir">—</strong><small id="valid-pir">等待</small></article>
-            <article data-sensor="keypad"><span>8键AD · GPIO10</span><strong id="sensor-keypad">—</strong><small id="valid-keypad">等待</small></article>
-            <article data-sensor="mq2"><span>MQ2 · GPIO2</span><strong id="sensor-mq2">—</strong><small id="valid-mq2">等待</small></article>
-            <article data-sensor="water"><span>水滴 · GPIO8</span><strong id="sensor-water">—</strong><small id="valid-water">等待</small></article>
-            <article data-sensor="flame"><span>火焰 · GPIO45</span><strong id="sensor-flame">—</strong><small id="valid-flame">等待</small></article>
-          </div>
+            <article class="future-card"><strong>麦克风输入</strong><p>批次B加入用户主动授权、自检和浏览器不支持时的文本降级。</p></article>
+          </section>
         </section>
 
-        <section class="panel evidence-panel">
-          <div class="section-heading"><div><p class="eyebrow">EXPLAINABLE REASONING</p><h2>证据链</h2></div></div>
-          <div class="evidence-grid"><div><h3>支持证据</h3><ul id="supporting-list"><li>等待实时数据</li></ul></div><div><h3>反对证据</h3><ul id="opposing-list"><li>—</li></ul></div><div><h3>缺失证据</h3><ul id="missing-list"><li>—</li></ul></div></div>
+        <section id="debug" class="workbench" data-workbench="debug" aria-labelledby="debug-title" hidden>
+          <section id="actuator-console" class="panel">
+            <div class="section-heading"><div><p class="eyebrow">ACTUATOR CONSOLE</p><h1 id="debug-title">调试台</h1></div><span class="tag">逐项低压动作</span></div>
+            <p class="section-note">Mock可验证协议；真板动作仍需会话内另行明确授权，页面按钮不代替硬件授权。</p>
+            <div class="actuator-console">
+              <article><header><span>风扇 GPIO11</span></header><div><button data-actuator="fan" data-value="0">停</button><button data-actuator="fan" data-value="50">中速</button><button data-actuator="fan" data-value="100">全速</button><button data-actuator="fan" data-value="auto">自动</button></div></article>
+              <article><header><span>舵机 GPIO9</span></header><div><button data-actuator="servo" data-value="hold">关</button><button data-actuator="servo" data-value="rest">中</button><button data-actuator="servo" data-value="ventilation-open">开</button><button data-actuator="servo" data-value="auto">自动</button></div></article>
+              <article><header><span>蜂鸣器 GPIO13</span></header><div><button data-actuator="buzzer" data-value="true">800ms短测</button><button data-actuator="buzzer" data-value="false">停止</button><button data-actuator="buzzer" data-value="auto">自动</button></div></article>
+              <article><header><span>RGB GPIO46</span></header><div><button data-actuator="rgb" data-value="red">红</button><button data-actuator="rgb" data-value="green">绿</button><button data-actuator="rgb" data-value="blue">蓝</button><button data-actuator="rgb" data-value="purple">紫</button><button data-actuator="rgb" data-value="off">关</button><button data-actuator="rgb" data-value="auto">自动</button></div></article>
+              <article><header><span>继电器LED GPIO12</span></header><div><button data-actuator="relay" data-value="true">开</button><button data-actuator="relay" data-value="false">关</button><button data-actuator="relay" data-value="auto">自动</button></div></article>
+            </div>
+          </section>
         </section>
 
-        <section id="controls" class="panel control-panel">
-          <div class="section-heading"><div><p class="eyebrow">SCENE LINKAGE</p><h2>六种情境与安全模拟</h2></div><span>命令等待同 ID ack</span></div>
-          <div id="mode-controls" class="mode-grid"><button data-mode="detect">情境侦探</button><button data-mode="study">专注学习</button><button data-mode="rest">安心休息</button><button data-mode="ventilation">通风换气</button><button data-mode="energy">无人节能</button><button data-mode="custom">自定义</button></div>
-          <div id="scenario-controls" class="scenario-grid"><button data-scenario="normal">正常Mock</button><button data-scenario="mq2">MQ2 Mock</button><button data-scenario="water">漏水Mock</button><button data-scenario="flame">火焰Mock</button></div>
-        </section>
-
-        <section id="actuator-console" class="panel full-width">
-          <div class="section-heading"><div><p class="eyebrow">ACTUATOR CONSOLE</p><h2>执行器快捷控制</h2></div><span class="tag">安全覆盖优先</span></div>
-          <div class="actuator-console">
-            <article><header><span>风扇 GPIO11</span><strong id="actuator-fan">—</strong></header><div><button data-actuator="fan" data-value="0">停</button><button data-actuator="fan" data-value="50">中速</button><button data-actuator="fan" data-value="100">全速</button><button data-actuator="fan" data-value="auto">自动</button></div></article>
-            <article><header><span>舵机 GPIO9</span><strong id="actuator-servo">—</strong></header><div><button data-actuator="servo" data-value="hold">关</button><button data-actuator="servo" data-value="rest">中</button><button data-actuator="servo" data-value="ventilation-open">开</button><button data-actuator="servo" data-value="auto">自动</button></div></article>
-            <article><header><span>蜂鸣器 GPIO13</span><strong id="actuator-buzzer">—</strong></header><div><button data-actuator="buzzer" data-value="true">800ms短测</button><button data-actuator="buzzer" data-value="false">停止</button><button data-actuator="buzzer" data-value="auto">自动</button></div></article>
-            <article><header><span>RGB GPIO46</span><strong id="actuator-rgb">—</strong></header><div><button data-actuator="rgb" data-value="red">红</button><button data-actuator="rgb" data-value="green">绿</button><button data-actuator="rgb" data-value="blue">蓝</button><button data-actuator="rgb" data-value="purple">紫</button><button data-actuator="rgb" data-value="off">关</button><button data-actuator="rgb" data-value="auto">自动</button></div></article>
-            <article><header><span>继电器LED GPIO12</span><strong id="actuator-relay">—</strong></header><div><button data-actuator="relay" data-value="true">开</button><button data-actuator="relay" data-value="false">关</button><button data-actuator="relay" data-value="auto">自动</button></div></article>
-          </div>
-        </section>
-
-        <section id="device-registry" class="panel registry-panel">
-          <div class="section-heading"><div><p class="eyebrow">DEVICE REGISTRY</p><h2>设备注册中心</h2></div><button id="registry-save" class="primary">保存本地注册</button></div>
-          <p>端口扫描 → 模块选择 → 房间归类 → 情境绑定 → 后续云端同步。</p><div id="registry-grid" class="registry-grid"></div>
-        </section>
-
-        <section class="panel log-panel">
-          <div class="section-heading"><div><p class="eyebrow">PROTOCOL LOG</p><h2>数据与命令日志</h2></div></div>
-          <ol id="event-log"><li><time>—</time><span>等待 Web Serial 或 WebSocket</span></li></ol>
+        <section id="logs" class="workbench" data-workbench="logs" aria-labelledby="logs-title" hidden>
+          <section class="panel">
+            <div class="section-heading"><div><p class="eyebrow">DATA LOG</p><h1 id="logs-title">数据日志</h1></div><span class="tag">本地有界记录</span></div>
+            <p class="section-note">批次A先记录链路、命令和ACK；趋势、过滤和导出在批次B补齐。</p>
+            <ol id="event-log" class="event-list event-list-full"><li><time>—</time><span>等待 Web Serial 或 WebSocket</span></li></ol>
+          </section>
         </section>
       </main>
-      <footer>页面不采集摄像头画面 · 声音模块只上报强度 · 计划动作、板端应用与实物验收分层显示</footer>
+
+      <footer>页面不采集摄像头画面 · 声音模块只上报相对强度 · 计划动作、板端实际状态与实物验收分层显示</footer>
     </div>
     <script src="./context-core.js"></script>
     <script src="./serial-core.js"></script>
     <script src="./registry-core.js"></script>
     <script src="./voice-core.js"></script>
     <script src="./alert-core.js"></script>
+    <script src="./dashboard-state-core.js"></script>
+    <script src="./presentation-core.js"></script>
+    <script src="./command-ledger-core.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>
