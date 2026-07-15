@@ -123,10 +123,10 @@ git status --short --branch
 
 先写失败测试，覆盖：
 
-1. 页面状态只允许 `waiting / real-live / mock-live / stale / offline`。
+1. 页面状态只允许 `waiting / real-telemetry / real-live / mock-live / stale / offline`；其中`real-telemetry`表示新鲜真板遥测已到达，但没有捕获同源启动`hello`。
 2. WebSocket已连接但没有新鲜项目遥测时，不得显示真板或模拟板在线。
 3. `telemetry.mock=true`只能映射为模拟板在线。
-4. 真板身份必须同时满足项目、画像和新鲜遥测。
+4. 完整`real-live`必须同时满足匹配`hello`、项目、画像和新鲜遥测；只有项目/画像匹配的新鲜非Mock遥测时，显示待确认的`real-telemetry`，不得误写成“无实时数据”或完整“真板在线”。
 5. 声音显示“相对强度”，MQ2显示“原始ADC”，不生成 `dB` 或 `ppm`。
 6. 四类关键输入与额外输入分层。
 7. `actuatorTargets`和`actuators`继续分栏。
