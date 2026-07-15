@@ -85,6 +85,7 @@ test("new pure modules load before the browser application", () => {
 
 test("client implements query endpoint, command ledger and stale clearing", () => {
   const source = read("app.js");
+  const stateCore = read("dashboard-state-core.js");
   assert.match(source, /searchParams\.get\(["']ws["']\)/);
   assert.match(source, /COMMAND_TIMEOUT_MS\s*=\s*2500/);
   assert.match(source, /TELEMETRY_STALE_MS\s*=\s*3500/);
@@ -94,6 +95,8 @@ test("client implements query endpoint, command ledger and stale clearing", () =
   assert.match(source, /telemetry\.mock\s*===\s*true/);
   assert.doesNotMatch(source, /telemetry\.mock\s*!==\s*true\)\s*return/);
   assert.match(source, /ContextCore\.evidenceLabel/);
+  assert.match(stateCore, /真板遥测在线/);
+  assert.match(stateCore, /未捕获启动身份/);
 });
 
 test("dashboard separates targets, applied values and hardware verification", () => {

@@ -8,7 +8,7 @@
   const PROJECT_ID = "smartlife-junior-context";
   const PROFILE_ID = "smartlife-junior-context-detective-v1";
   const DEFAULT_STALE_MS = 3500;
-  const STATE_KINDS = Object.freeze(["waiting", "real-live", "mock-live", "stale", "offline"]);
+  const STATE_KINDS = Object.freeze(["waiting", "real-telemetry", "real-live", "mock-live", "stale", "offline"]);
 
   function matchesIdentity(frame, type) {
     return Boolean(frame) && frame.type === type && frame.project === PROJECT_ID && frame.profileId === PROFILE_ID;
@@ -36,6 +36,13 @@
     if (telemetryFresh && options.telemetry.mock !== true && helloMatches && options.hello.mock !== true) {
       const sourceLabel = options.telemetryRoute === "serial" ? "Web Serial 真板数据" : "Python 网关真板数据";
       return state("real-live", "真板在线", sourceLabel, "新鲜真板遥测", "ok");
+    }
+
+    const serialTelemetry = options.telemetryRoute === "serial" && options.serialConnected === true;
+    const gatewayTelemetry = options.telemetryRoute === "websocket" && options.websocketOpen === true;
+    if (telemetryFresh && options.telemetry.mock !== true && options.hello == null && (serialTelemetry || gatewayTelemetry)) {
+      const sourceLabel = serialTelemetry ? "Web Serial · 未捕获启动身份" : "Python 网关 · 未捕获启动身份";
+      return state("real-telemetry", "真板遥测在线", sourceLabel, "新鲜真板遥测 · 身份待补", "pending");
     }
 
     if (telemetryMatches && Number.isFinite(options.lastTelemetryAt) && !telemetryFresh) {

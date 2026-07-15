@@ -35,6 +35,7 @@
 - Web Serial是主连接路线；`tools/n16r8_gateway.py`是真CH340备用路线，`--mock-board`只产生显式`mock=true`的数据。WebSocket在线、USB已授权、页面已渲染或旧遥测都不等于开发板数据在线。
 - Dashboard必须分开显示计划目标、实际应用、Mock模拟执行、启动保护和硬件验收状态；3500ms没有新鲜遥测后清除旧结论。
 - Dashboard现有六个hash工作台和五节点证据链；`dashboard-state-core.js`、`presentation-core.js`、`command-ledger-core.js`分别负责连接真相、诚实呈现和同ID命令台账。ACK成功或后续看到遥测仍不等于实物已经验收。
+- 新鲜、非Mock、项目/画像匹配的真板遥测已经到达，但同源启动`hello`未被浏览器捕获时，状态必须为`real-telemetry`：开发板显示“真板遥测在线”，数据源显示“未捕获启动身份”，不得回落为“无实时数据”，也不得冒充完整“真板在线”。
 - 本轮烧录与静态采样授权已经使用完毕，当前默认回到契约测试、`pio run`纯编译、本地Mock网关与静态Dashboard。下一次真板控制或再次写入仍需用户明确授权。
 - 任何后续PIO应用写入仍只允许`0x10000`，写后独立校验；不得擦除或覆盖bootloader、分区表、NVS、Wi-Fi或小智激活数据。
 
@@ -47,6 +48,8 @@
 2026-07-15阶段5真板静态证据：用户确认风扇外接电池关闭、Web Serial释放且高电流负载安全后，只将326240字节、SHA-256为`a61dbe59b6319f894f34ebc51359b42ef212c8dcdafd45d12eb0de8dbdc757ec`的应用镜像写入`0x10000`；写入范围为`0x00010000-0x0005ffff`，独立`verify_flash`返回`verify OK (digest matched)`，未写bootloader、分区表或NVS。串口确认`hello.firmware=0.4.0`，约5.15秒由`boot-guard`进入`fully-armed`；30.65秒MQ2退出预热，安全状态为`normal`、9项传感器有效、无告警，实际状态为风扇0%、舵机0度、继电器断开、蜂鸣器关闭、RGB关闭。仍保持`hardwareVerified=false`、`calibrationRequired=true`和四项未验收标志。
 
 2026-07-15证据链Dashboard批次A软件证据：Python 30项、Node 47项全部通过，全部Dashboard JavaScript语法检查和`git diff --check`通过；显式Mock实际收到正确项目/画像`hello`、`mock=true`遥测、同ID成功ACK和模式变化后的新遥测，结束后恢复`detect`。PIO纯编译`[SUCCESS]`，RAM`19712 / 327680 bytes`（6.0%），Flash`325881 / 6553600 bytes`（5.0%）。本轮内置浏览器无可用实例，故没有新增视觉截图证据；没有连接、枚举或占用USB，也没有烧录。
+
+2026-07-16真板遥测身份待补状态证据：定向测试先因缺少`real-telemetry`失败，最小实现后全量Python 30项、Node 49项和全部Dashboard JavaScript语法检查通过；PIO纯编译`[SUCCESS]`，RAM`19712 / 327680 bytes`（6.0%），Flash`325881 / 6553600 bytes`（5.0%）。本轮只改Dashboard状态机、测试和文档，没有连接、枚举或占用USB，也没有烧录。
 
 阶段2固定本地端口：WebSocket网关 `127.0.0.1:18766`，静态Dashboard `127.0.0.1:18767`。标准启动命令：
 

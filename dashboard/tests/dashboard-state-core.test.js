@@ -33,19 +33,38 @@ test("fresh explicit mock telemetry is the only route to mock-live", () => {
   assert.equal(state.sourceLabel, "Mock 模拟数据");
 });
 
-test("real-live requires a matching real hello plus fresh real telemetry", () => {
-  const withoutHello = core.resolveState({
+test("fresh real telemetry without a captured hello stays visibly live but identity-pending", () => {
+  assert.deepEqual(core.STATE_KINDS, ["waiting", "real-telemetry", "real-live", "mock-live", "stale", "offline"]);
+  const serial = core.resolveState({
     telemetry: telemetry(),
     lastTelemetryAt: 9_500,
     now: 10_000,
     serialConnected: true,
+    telemetryRoute: "serial",
   });
+  const gateway = core.resolveState({
+    telemetry: telemetry(),
+    lastTelemetryAt: 9_500,
+    now: 10_000,
+    websocketOpen: true,
+    telemetryRoute: "websocket",
+  });
+  assert.equal(serial.kind, "real-telemetry");
+  assert.equal(serial.boardLabel, "真板遥测在线");
+  assert.equal(serial.sourceLabel, "Web Serial · 未捕获启动身份");
+  assert.equal(serial.dataState, "pending");
+  assert.equal(gateway.kind, "real-telemetry");
+  assert.equal(gateway.sourceLabel, "Python 网关 · 未捕获启动身份");
+});
+
+test("real-live requires a matching real hello plus fresh real telemetry", () => {
   const withForeignHello = core.resolveState({
     hello: hello({profileId: "other-profile"}),
     telemetry: telemetry(),
     lastTelemetryAt: 9_500,
     now: 10_000,
     serialConnected: true,
+    telemetryRoute: "serial",
   });
   const valid = core.resolveState({
     hello: hello(),
@@ -55,7 +74,6 @@ test("real-live requires a matching real hello plus fresh real telemetry", () =>
     serialConnected: true,
     telemetryRoute: "serial",
   });
-  assert.equal(withoutHello.kind, "waiting");
   assert.equal(withForeignHello.kind, "waiting");
   assert.equal(valid.kind, "real-live");
   assert.equal(valid.boardLabel, "真板在线");
@@ -86,4 +104,22 @@ test("foreign project telemetry cannot become a live state", () => {
     serialConnected: true,
   });
   assert.equal(state.kind, "waiting");
+});
+
+test("identity-pending state rejects missing profile and unknown transport routes", () => {
+  const missingProfile = core.resolveState({
+    telemetry: telemetry({profileId: undefined}),
+    lastTelemetryAt: 9_900,
+    now: 10_000,
+    serialConnected: true,
+    telemetryRoute: "serial",
+  });
+  const unknownRoute = core.resolveState({
+    telemetry: telemetry(),
+    lastTelemetryAt: 9_900,
+    now: 10_000,
+    serialConnected: true,
+  });
+  assert.equal(missingProfile.kind, "waiting");
+  assert.equal(unknownRoute.kind, "waiting");
 });
