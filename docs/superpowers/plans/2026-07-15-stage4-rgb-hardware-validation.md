@@ -1,6 +1,6 @@
 # 阶段4 GPIO46 RGB灯环真板验收实施计划
 
-> **计划状态：** 已完成。正确接入`SI`后GPIO13交叉诊断可见点亮，GPIO46复测无可见输出；最终`0.3.2`已安全回退为RGB未武装、未验收。
+> **计划状态：** RGB点灯部分已安全收口；GPIO46有源蜂鸣器基础输出诊断A5已获明确烧录授权，待执行后再次恢复`0.3.2`。
 >
 > **执行要求：** 软件步骤严格执行“先失败测试、再最小实现、再全量回归”；硬件步骤只写PIO应用段`0x10000`并独立校验。任何停止条件出现时立即停在当前检查点。
 
@@ -200,3 +200,13 @@ git status --short --branch
 5. 运行`git diff --check`与`git status --short --branch`，提交并推送`origin/main`。
 
 完成后仍保持：`physicalActuators=false`、`physicalRgb=false`、`actuatorsReady=false`、整机`hardwareVerified=false`、RGB/风扇/舵机/继电器未武装。下一次GPIO46基础输出诊断或GPIO调整不得在没有新授权的情况下开始。
+
+## 任务7：GPIO46有源蜂鸣器基础输出诊断A5
+
+1. 以提交`c498dd5`及真板`0.3.2`为安全回退点，确认只有有源蜂鸣器接GPIO46，GPIO13和其他执行器空置。
+2. 先更新静态合同，要求候选版本`0.3.3-rc1-gpio46-buzzer-diagnostic`、实际蜂鸣输出引脚46、RGB未武装，并确认旧安全版测试失败。
+3. 最小实现只把现有800ms非阻塞蜂鸣驱动临时路由到GPIO46；健康字段和成功回执都必须报告输出引脚46，不得把它记录成正式GPIO变更。
+4. 运行全量Python、Node、JavaScript语法和PIO编译，保存Git检查点；只写应用区`0x10000`并独立`verify_flash`。
+5. 复位确认上电静音，发送一次`buzzer=true`；采集同ID回执、`buzzerOn=true -> false`和约800ms窗口，由用户报告是否听到。
+6. 发送显式停止命令，无论结果如何都重新构建并写回安全版`0.3.2`，确认GPIO46诊断输出已解除、RGB命令被拒绝、蜂鸣器正式引脚恢复为GPIO13。
+7. 更新`设计方案.md`、`开发文档.md`、`AGENTS.md`和本规格/计划，只记录真实人工结果，提交并推送。
