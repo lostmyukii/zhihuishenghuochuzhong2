@@ -1,12 +1,12 @@
 # 阶段4 GPIO46 RGB灯环真板验收实施计划
 
-> **计划状态：** 设计规格已确认，待按本计划实施。
+> **计划状态：** 首轮`0.3.2-rc1`机器证据通过但用户两次未见亮灯；修订方案A2已批准，待实施`0.3.2-rc2`。
 >
 > **执行要求：** 软件步骤严格执行“先失败测试、再最小实现、再全量回归”；硬件步骤只写PIO应用段`0x10000`并独立校验。任何停止条件出现时立即停在当前检查点。
 
-**目标：** 在GPIO13蜂鸣器保持静音、风扇/舵机/继电器继续未武装的前提下，为GPIO46的12颗RGB灯环建立上电全灭、标准命令触发、`8 / 255`低亮青色800ms、自动熄灭、同ID回执和真实遥测，并完成一次用户可见的真板验收。
+**目标：** 在GPIO13蜂鸣器保持静音、风扇/舵机/继电器继续未武装的前提下，为GPIO46的12颗RGB灯环建立上电全灭、标准命令触发、`24 / 255`低亮青色3秒、自动熄灭、同ID回执和真实遥测，并完成一次用户可见的真板验收。
 
-**架构：** 纯C++ `RgbPulseController`只管理800ms状态窗口；`ActuatorDriver`独占NeoPixel物理输出；`main.cpp`只校验命令、调度驱动和序列化协议。`ActuatorPlanner`和`SafetyEngine`继续只产生逻辑目标，不自动驱动本轮灯环。
+**架构：** 纯C++ `RgbPulseController`只管理3000ms状态窗口；`ActuatorDriver`独占NeoPixel物理输出；`main.cpp`只校验命令、调度驱动和序列化协议。`ActuatorPlanner`和`SafetyEngine`继续只产生逻辑目标，不自动驱动本轮灯环。
 
 **技术栈：** C++17原生测试、PlatformIO Arduino ESP32-S3、Adafruit NeoPixel 1.15.5、ArduinoJson 7、Python `unittest`、Node.js `node:test`、esptool.py、CH340 UART 115200。
 
@@ -30,6 +30,7 @@
 | PIO编译 | 只更新忽略的`.pio/`产物 | 重新编译即可 |
 | 应用区写入 | 只修改Flash `0x10000`应用段 | 写回已知良好的`0.3.1`应用产物 |
 | 800ms低亮青色 | GPIO46短时输出 | 自动熄灭、发送`rgb=off`或异常时拔USB |
+| 修订3秒低亮青色 | GPIO46以`24 / 255`短时输出 | 自动熄灭、发送`rgb=off`或异常时拔USB |
 | Git推送 | 更新`origin/main` | 追加纠正提交，不强推 |
 
 明确禁止：全片擦除、写入`0x400000`或`0x100000`、改写bootloader/分区表/NVS、修改Wi-Fi或小智激活数据、初始化GPIO11/9/12、提高RGB亮度、真实燃气/烟雾/明火测试。
@@ -61,12 +62,12 @@
 
 ### 2.1 先写失败测试
 
-原生测试覆盖：初始关闭、请求后开启、到期前保持、800ms自动关闭、重复请求刷新、`stop()`立即关闭和`uint32_t`回绕。
+原生测试覆盖：初始关闭、请求后开启、到期前保持、3000ms自动关闭、重复请求刷新、`stop()`立即关闭和`uint32_t`回绕。
 
 静态合同要求：
 
-- 候选版本为`0.3.2-rc1`。
-- `RGB_LED_COUNT=12`、`RGB_TEST_BRIGHTNESS=8`、`RGB_TEST_PULSE_MS=800`。
+- 修订候选版本为`0.3.2-rc2`。
+- `RGB_LED_COUNT=12`、`RGB_TEST_BRIGHTNESS=24`、`RGB_TEST_PULSE_MS=3000`。
 - `RGB_ARMED=true`、`RGB_HARDWARE_VERIFIED=false`；风扇/舵机/继电器仍为`false`。
 - 使用`Adafruit_NeoPixel`、`PIN_RGB`、`NEO_GRB + NEO_KHZ800`。
 - 初始化执行`begin()`、`setBrightness(8)`、`clear()`、`show()`，不得产生启动灯效。
@@ -112,7 +113,7 @@
 ### 3.2 最小协议实现
 
 - 只把`cyan/off`两种RGB命令路由到验证驱动。
-- 命令触发和到期改变时立即发送遥测，确保800ms窗口可被观察。
+- 命令触发和到期改变时立即发送遥测，确保3000ms窗口可被观察。
 - 其他RGB逻辑状态只保留在计划层并明确拒绝物理命令。
 - 串口继续一行一个完整JSON对象，不加入调试文字。
 
@@ -133,7 +134,7 @@ git diff --check
 git status --short --branch
 ```
 
-只有全部通过才冻结`0.3.2-rc1`的`firmware.bin`，记录精确大小、SHA-256、Git提交、RAM/Flash占用和应用偏移`0x10000`。失败时停在软件阶段，不接触真板Flash。
+只有全部通过才冻结`0.3.2-rc2`的`firmware.bin`，记录精确大小、SHA-256、Git提交、RAM/Flash占用和应用偏移`0x10000`。失败时停在软件阶段，不接触真板Flash。
 
 ## 任务5：写入候选固件并完成可见验收
 
@@ -153,7 +154,7 @@ git status --short --branch
 
 ### 5.3 上电全灭门
 
-复位后先确认：灯环全灭、蜂鸣器静音；`hello`版本为`0.3.2-rc1`；连续遥测正常；`physicalRgb=true`但`rgbHardwareVerified=false`。
+复位后先确认：灯环全灭、蜂鸣器静音；`hello`版本为`0.3.2-rc2`；连续遥测正常；`physicalRgb=true`但`rgbHardwareVerified=false`。
 
 任何上电亮灯、持续闪烁、USB掉线或主板重启都立即停止并回退`0.3.1`。
 
@@ -165,7 +166,7 @@ git status --short --branch
 {"type":"command","id":"hw-rgb-pulse-1","actuator":{"rgb":"cyan"}}
 ```
 
-机器证据必须满足：同ID且`ok=true`；遥测出现`rgbState=cyan`；约800ms后自动出现`rgbState=off`；uptime不中断且USB端口保持存在。
+机器证据必须满足：同ID且`ok=true`；遥测出现`rgbState=cyan`；约3000ms后自动出现`rgbState=off`；uptime不中断且USB端口保持存在。
 
 人工证据由用户确认：
 
