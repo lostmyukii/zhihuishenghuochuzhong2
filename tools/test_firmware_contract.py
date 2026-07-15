@@ -76,7 +76,7 @@ class FirmwareContractTests(unittest.TestCase):
         for token in [
             'PROJECT_ID = "smartlife-junior-context"',
             'PROFILE_ID = "smartlife-junior-context-detective-v1"',
-            'FIRMWARE_VERSION = "0.3.2-rc1"',
+            'FIRMWARE_VERSION = "0.3.2-rc2"',
             "SERIAL_BAUD = 115200",
             "FAST_SENSOR_INTERVAL_MS = 200",
             "DHT_INTERVAL_MS = 2000",
@@ -93,8 +93,8 @@ class FirmwareContractTests(unittest.TestCase):
             "FAN_ALERT_PERCENT = 100",
             "BUZZER_TEST_PULSE_MS = 800",
             "RGB_LED_COUNT = 12",
-            "RGB_TEST_BRIGHTNESS = 8",
-            "RGB_TEST_PULSE_MS = 800",
+            "RGB_TEST_BRIGHTNESS = 24",
+            "RGB_TEST_PULSE_MS = 3000",
             "ACTUATORS_ARMED = true",
             "BUZZER_ARMED = true",
             "BUZZER_HARDWARE_VERIFIED = true",
@@ -255,7 +255,7 @@ class FirmwareContractTests(unittest.TestCase):
         for forbidden in [
             "ledcWrite(",
             ".attach(",
-            "delay(800)",
+            "delay(3000)",
         ]:
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
