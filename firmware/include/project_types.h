@@ -66,6 +66,7 @@ enum class RgbState : uint8_t {
 
 enum class ActuatorApplyState : uint8_t {
   Unarmed,
+  PartialBuzzerTest,
 };
 
 struct SensorSample {
@@ -172,4 +173,6 @@ struct ActuatorPlan {
 
 struct ActuatorApplyResult {
   ActuatorApplyState state = ActuatorApplyState::Unarmed;
+  bool buzzerAvailable = false;
+  bool buzzerOn = false;
 };

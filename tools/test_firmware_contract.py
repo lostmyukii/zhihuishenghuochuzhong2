@@ -22,6 +22,8 @@ PLANNER_HEADER = FIRMWARE / "include" / "actuator_planner.h"
 PLANNER_CPP = FIRMWARE / "src" / "actuator_planner.cpp"
 DRIVER_HEADER = FIRMWARE / "include" / "actuator_driver.h"
 DRIVER_CPP = FIRMWARE / "src" / "actuator_driver.cpp"
+BUZZER_CONTROLLER_HEADER = FIRMWARE / "include" / "buzzer_pulse_controller.h"
+BUZZER_CONTROLLER_CPP = FIRMWARE / "src" / "buzzer_pulse_controller.cpp"
 
 
 class FirmwareContractTests(unittest.TestCase):
@@ -40,6 +42,8 @@ class FirmwareContractTests(unittest.TestCase):
             "framework = arduino",
             "monitor_speed = 115200",
             "upload_speed = 115200",
+            "monitor_dtr = 0",
+            "monitor_rts = 0",
             "-DARDUINO_USB_MODE=0",
             "-DARDUINO_USB_CDC_ON_BOOT=0",
             "adafruit/DHT sensor library@1.4.7",
@@ -70,7 +74,7 @@ class FirmwareContractTests(unittest.TestCase):
         for token in [
             'PROJECT_ID = "smartlife-junior-context"',
             'PROFILE_ID = "smartlife-junior-context-detective-v1"',
-            'FIRMWARE_VERSION = "0.3.0"',
+            'FIRMWARE_VERSION = "0.3.1-rc1"',
             "SERIAL_BAUD = 115200",
             "FAST_SENSOR_INTERVAL_MS = 200",
             "DHT_INTERVAL_MS = 2000",
@@ -85,8 +89,10 @@ class FirmwareContractTests(unittest.TestCase):
             "FAN_LOW_PERCENT = 35",
             "FAN_VENTILATION_PERCENT = 70",
             "FAN_ALERT_PERCENT = 100",
-            "ACTUATORS_ARMED = false",
-            "BUZZER_ARMED = false",
+            "BUZZER_TEST_PULSE_MS = 150",
+            "ACTUATORS_ARMED = true",
+            "BUZZER_ARMED = true",
+            "BUZZER_HARDWARE_VERIFIED = false",
             "FAN_ARMED = false",
             "SERVO_ARMED = false",
             "RELAY_ARMED = false",
@@ -181,6 +187,8 @@ class FirmwareContractTests(unittest.TestCase):
             PLANNER_CPP,
             DRIVER_HEADER,
             DRIVER_CPP,
+            BUZZER_CONTROLLER_HEADER,
+            BUZZER_CONTROLLER_CPP,
         ]:
             self.read_required(path)
 
@@ -196,20 +204,25 @@ class FirmwareContractTests(unittest.TestCase):
         self.assertIn("actuatorPlanner.plan", main)
         self.assertIn("actuatorDriver.apply", main)
 
-    def test_actuator_driver_is_unarmed_and_has_no_physical_io(self):
+    def test_actuator_driver_only_arms_gpio13_with_safe_boot_order(self):
         source = self.read_required(DRIVER_CPP)
         header = self.read_required(DRIVER_HEADER)
 
-        self.assertIn("ActuatorApplyState::Unarmed", source)
         self.assertIn("ACTUATORS_ARMED", source)
+        self.assertIn("BUZZER_ARMED", source)
+        self.assertIn("BuzzerPulseController", header)
         self.assertIn("class ActuatorDriver", header)
+        safe_low = source.index("digitalWrite(PIN_BUZZER, LOW)")
+        output_mode = source.index("pinMode(PIN_BUZZER, OUTPUT)")
+        self.assertLess(safe_low, output_mode)
+        self.assertIn("digitalWrite(PIN_BUZZER, HIGH)", source)
+        for forbidden_pin in ["PIN_FAN", "PIN_SERVO", "PIN_RELAY", "PIN_RGB"]:
+            with self.subTest(forbidden_pin=forbidden_pin):
+                self.assertNotIn(forbidden_pin, source)
         for forbidden in [
-            "pinMode(",
-            "digitalWrite(",
             "ledcWrite(",
             ".attach(",
             "Adafruit_NeoPixel",
-            ".begin(",
             ".show(",
         ]:
             with self.subTest(forbidden=forbidden):
