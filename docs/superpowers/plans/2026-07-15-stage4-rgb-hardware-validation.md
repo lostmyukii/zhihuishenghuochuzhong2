@@ -1,6 +1,6 @@
 # 阶段4 GPIO46 RGB灯环真板验收实施计划
 
-> **计划状态：** GPIO46的A1/A2/A3以及更换灯环后的A3均无人工可见输出；临时GPIO13交叉诊断A4已获用户接线确认与应用区烧录授权。
+> **计划状态：** 已完成。正确接入`SI`后GPIO13交叉诊断可见点亮，GPIO46复测无可见输出；最终`0.3.2`已安全回退为RGB未武装、未验收。
 >
 > **执行要求：** 软件步骤严格执行“先失败测试、再最小实现、再全量回归”；硬件步骤只写PIO应用段`0x10000`并独立校验。任何停止条件出现时立即停在当前检查点。
 
@@ -191,12 +191,12 @@ git status --short --branch
 
 ## 任务6：形成`0.3.2`最终状态并收口
 
-只有机器证据和用户视觉证据都通过后：
+本轮机器证据通过但GPIO46视觉证据未通过，因此按失败收口：
 
-1. 将`RGB_HARDWARE_VERIFIED`改为`true`，版本改为`0.3.2`。
+1. 保持`RGB_HARDWARE_VERIFIED=false`和`RGB_ARMED=false`，版本定为安全正式版`0.3.2`。
 2. 更新`设计方案.md`、`开发文档.md`、`AGENTS.md`和RGB规格/计划状态，只记录真实通过项。
 3. 重新运行全量Python、Node、JavaScript语法和PIO编译。
 4. 只更新应用区并独立校验；最终复位确认上电全灭、蜂鸣器静音和串口状态正确。
 5. 运行`git diff --check`与`git status --short --branch`，提交并推送`origin/main`。
 
-完成后仍保持：`physicalActuators=false`、`actuatorsReady=false`、整机`hardwareVerified=false`、风扇/舵机/继电器未武装。下一项不得在没有新授权的情况下开始。
+完成后仍保持：`physicalActuators=false`、`physicalRgb=false`、`actuatorsReady=false`、整机`hardwareVerified=false`、RGB/风扇/舵机/继电器未武装。下一次GPIO46基础输出诊断或GPIO调整不得在没有新授权的情况下开始。
