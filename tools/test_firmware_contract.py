@@ -76,7 +76,7 @@ class FirmwareContractTests(unittest.TestCase):
         for token in [
             'PROJECT_ID = "smartlife-junior-context"',
             'PROFILE_ID = "smartlife-junior-context-detective-v1"',
-            'FIRMWARE_VERSION = "0.3.2-rc5-gpio46-si"',
+            'FIRMWARE_VERSION = "0.3.2"',
             "SERIAL_BAUD = 115200",
             "FAST_SENSOR_INTERVAL_MS = 200",
             "DHT_INTERVAL_MS = 2000",
@@ -102,7 +102,7 @@ class FirmwareContractTests(unittest.TestCase):
             "FAN_ARMED = false",
             "SERVO_ARMED = false",
             "RELAY_ARMED = false",
-            "RGB_ARMED = true",
+            "RGB_ARMED = false",
             "RGB_HARDWARE_VERIFIED = false",
             "CONTEXT_MIN_COVERAGE = 70",
             "CONTEXT_MATCH_THRESHOLD = 65",
@@ -132,7 +132,7 @@ class FirmwareContractTests(unittest.TestCase):
 
         self.assertIn("RGB_TEST_OUTPUT_PIN = PIN_RGB", config)
         self.assertIn("BUZZER_ARMED = true", config)
-        self.assertIn("RGB_ARMED = true", config)
+        self.assertIn("RGB_ARMED = false", config)
 
     def test_stage_four_protocol_has_honest_hello_telemetry_and_ack(self):
         source = self.read_required(MAIN_CPP)
@@ -154,7 +154,7 @@ class FirmwareContractTests(unittest.TestCase):
             'features["physicalBuzzer"]',
             'features["physicalRgb"]',
             'root["rfid"] = false',
-            'health["stage"] = "stage4-rgb-gpio46-si-validation"',
+            'health["stage"] = "stage4-rgb-diagnosis-complete"',
             'health["sensorsReady"] = true',
             'health["actuatorsReady"] = false',
             'health["actuatorsArmed"] = ACTUATORS_ARMED',

@@ -65,7 +65,7 @@ ContextMode selectedContextMode() {
 }
 
 void addStageHealth(JsonObject health) {
-  health["stage"] = "stage4-rgb-gpio46-si-validation";
+  health["stage"] = "stage4-rgb-diagnosis-complete";
   health["sensorsReady"] = true;
   health["actuatorsArmed"] = ACTUATORS_ARMED;
   health["actuatorsReady"] = false;
