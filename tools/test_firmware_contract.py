@@ -76,7 +76,7 @@ class FirmwareContractTests(unittest.TestCase):
         for token in [
             'PROJECT_ID = "smartlife-junior-context"',
             'PROFILE_ID = "smartlife-junior-context-detective-v1"',
-            'FIRMWARE_VERSION = "0.3.2-rc2"',
+            'FIRMWARE_VERSION = "0.3.2-rc3"',
             "SERIAL_BAUD = 115200",
             "FAST_SENSOR_INTERVAL_MS = 200",
             "DHT_INTERVAL_MS = 2000",
@@ -93,8 +93,9 @@ class FirmwareContractTests(unittest.TestCase):
             "FAN_ALERT_PERCENT = 100",
             "BUZZER_TEST_PULSE_MS = 800",
             "RGB_LED_COUNT = 12",
-            "RGB_TEST_BRIGHTNESS = 24",
-            "RGB_TEST_PULSE_MS = 3000",
+            "RGB_TEST_ACTIVE_PIXELS = 1",
+            "RGB_TEST_BRIGHTNESS = 128",
+            "RGB_TEST_PULSE_MS = 5000",
             "ACTUATORS_ARMED = true",
             "BUZZER_ARMED = true",
             "BUZZER_HARDWARE_VERIFIED = true",
@@ -245,7 +246,7 @@ class FirmwareContractTests(unittest.TestCase):
             "rgbPixels_.begin()",
             "rgbPixels_.clear()",
             "rgbPixels_.show()",
-            "rgbPixels_.Color(0, 255, 255)",
+            "rgbPixels_.setPixelColor(0, rgbPixels_.Color(255, 0, 0))",
         ]:
             with self.subTest(token=token):
                 self.assertIn(token, source + header)
@@ -255,7 +256,8 @@ class FirmwareContractTests(unittest.TestCase):
         for forbidden in [
             "ledcWrite(",
             ".attach(",
-            "delay(3000)",
+            "delay(5000)",
+            "rgbPixels_.fill(",
         ]:
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
@@ -377,8 +379,10 @@ class FirmwareContractTests(unittest.TestCase):
             'applied["buzzerPulseMs"] = BUZZER_TEST_PULSE_MS',
             'applied["rgbPulseMs"] = RGB_TEST_PULSE_MS',
             'applied["rgbBrightness"] = RGB_TEST_BRIGHTNESS',
-            'applied["rgbPixels"] = RGB_LED_COUNT',
+            'applied["rgbPixels"] = RGB_TEST_ACTIVE_PIXELS',
+            'applied["rgbRingPixels"] = RGB_LED_COUNT',
             '"rgb_test_state_only"',
+            'strcmp(requestedState, "red") == 0',
         ]:
             with self.subTest(token=token):
                 self.assertIn(token, source)

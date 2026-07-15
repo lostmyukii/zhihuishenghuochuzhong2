@@ -62,7 +62,8 @@ ActuatorApplyResult ActuatorDriver::requestRgbTestPulse(uint32_t nowMs) {
     return result();
   }
   rgbPulse_.requestPulse(nowMs);
-  rgbPixels_.fill(rgbPixels_.Color(0, 255, 255));
+  rgbPixels_.clear();
+  rgbPixels_.setPixelColor(0, rgbPixels_.Color(255, 0, 0));
   rgbPixels_.show();
   return result();
 }
@@ -101,7 +102,7 @@ ActuatorApplyResult ActuatorDriver::result() const {
   current.buzzerAvailable = buzzerAvailable_;
   current.buzzerOn = buzzerAvailable_ && buzzerPulse_.isOn();
   current.rgbAvailable = rgbAvailable_;
-  current.rgbState = rgbAvailable_ && rgbPulse_.isOn() ? RgbState::Cyan
+  current.rgbState = rgbAvailable_ && rgbPulse_.isOn() ? RgbState::Red
                                                        : RgbState::Off;
   return current;
 }

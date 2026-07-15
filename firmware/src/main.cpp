@@ -362,7 +362,8 @@ void emitRgbAck(const char* commandId, bool pulseStarted) {
   if (pulseStarted) {
     applied["rgbPulseMs"] = RGB_TEST_PULSE_MS;
     applied["rgbBrightness"] = RGB_TEST_BRIGHTNESS;
-    applied["rgbPixels"] = RGB_LED_COUNT;
+    applied["rgbPixels"] = RGB_TEST_ACTIVE_PIXELS;
+    applied["rgbRingPixels"] = RGB_LED_COUNT;
   }
   writeJsonLine(document);
 }
@@ -479,7 +480,7 @@ void handleCommandLine(const String& line) {
       return;
     }
     const char* requestedState = actuator["rgb"].as<const char*>();
-    const bool pulseRequested = strcmp(requestedState, "cyan") == 0;
+    const bool pulseRequested = strcmp(requestedState, "red") == 0;
     if (pulseRequested) {
       currentApply = actuatorDriver.requestRgbTestPulse(millis());
     } else if (strcmp(requestedState, "off") == 0) {
