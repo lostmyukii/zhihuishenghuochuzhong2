@@ -115,6 +115,14 @@ test("voice workbench keeps microphone selection, self-test and diagnostics", ()
   }
 });
 
+test("new voice controls require matching hello capabilities before sending", () => {
+  const source = read("app.js");
+  assert.match(source, /latestHello\?\.capabilities\?\.commands/);
+  assert.match(source, /VoiceCore\.requiredCapability/);
+  assert.match(source, /固件待升级/);
+  assert.doesNotMatch(source, /\["confirmContext",\s*"correctContext",\s*"setThreshold"\]\.includes\(intent\.intent\)/);
+});
+
 test("browser bundle contains no provider or broker secrets", () => {
   const source = fs.readdirSync(dashboard)
     .filter((name) => name.endsWith(".js") || name.endsWith(".html"))

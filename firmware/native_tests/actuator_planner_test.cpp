@@ -115,6 +115,13 @@ int main() {
   assert(hotStudy.finalTarget.fanPercent == 35);
   assert(hotStudy.finalTarget.servoPosition == ServoPosition::VentilationOpen);
 
+  RuntimeThresholds stricterThresholds;
+  stricterThresholds.temperatureThreshold = 31;
+  ActuatorPlan thresholdStudy = planner.plan(ContextMode::Study, studyRoom, context,
+                                               noRisk(), true, stricterThresholds);
+  assert(thresholdStudy.finalTarget.fanPercent == 0);
+  assert(thresholdStudy.finalTarget.servoPosition == ServoPosition::Study);
+
   SensorSnapshot restRoom = room;
   restRoom.humidity = sample(72);
   ActuatorPlan rest =

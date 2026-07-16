@@ -21,6 +21,20 @@ PROFILE_ID = "smartlife-junior-context-detective-v1"
 MODES = ("detect", "study", "rest", "ventilation", "energy", "custom")
 MOCK_SCENARIOS = ("normal", "mq2", "water", "flame")
 BOARD_FRAME_TYPES = {"hello", "telemetry", "health", "ack"}
+THRESHOLD_DEFAULTS: dict[str, int] = {
+    "lightThreshold": 1800,
+    "soundThreshold": 2300,
+    "temperatureThreshold": 28,
+    "humidityThreshold": 70,
+    "mq2Threshold": 2600,
+}
+THRESHOLD_RULES: dict[str, tuple[int, int, int]] = {
+    "lightThreshold": (0, 4095, 100),
+    "soundThreshold": (0, 4095, 50),
+    "temperatureThreshold": (10, 45, 1),
+    "humidityThreshold": (20, 95, 5),
+    "mq2Threshold": (0, 2600, 50),
+}
 
 PINS = {
     "light": 1,
@@ -161,6 +175,9 @@ class MockBoardState:
         self.sequence = 0
         self.buzzer_enabled = True
         self.manual_overrides: dict[str, Any] = {}
+        self.thresholds = deepcopy(THRESHOLD_DEFAULTS)
+        self.context_feedback = "none"
+        self.feedback_mode: str | None = None
 
     def hello(self) -> dict[str, Any]:
         return {
@@ -175,7 +192,7 @@ class MockBoardState:
             "rfid": False,
             "pins": PINS.copy(),
             "features": {"contextReasoning": True, "safetyReasoning": True, "actuatorPlanning": True, "physicalActuators": False, "webVoiceIntent": True, "localVoiceNlu": False, "mcp": False},
-            "capabilities": {"commands": ["setMode", "setMockScenario", "setBuzzerEnabled", "setActuator"], "modes": list(MODES), "mockScenarios": list(MOCK_SCENARIOS)},
+            "capabilities": {"commands": ["setMode", "setMockScenario", "setBuzzerEnabled", "setActuator", "confirmContext", "correctContext", "setThreshold"], "modes": list(MODES), "mockScenarios": list(MOCK_SCENARIOS), "thresholdFields": list(THRESHOLD_DEFAULTS)},
             "health": {"stage": "mock-stage5-integrated", "source": "mock-board", "sensorsReady": True, "actuatorsReady": True, "actuatorApplyState": "simulated", "contextReady": True, "safetyReady": True, "hardwareVerified": False, "calibrationRequired": True, "buzzerEnabled": self.buzzer_enabled},
         }
 
@@ -189,26 +206,38 @@ class MockBoardState:
 
         self._apply_manual_targets(targets)
 
-        if self.scenario == "mq2":
+        threshold_mq2 = self.scenario == "normal" and sensors["mq2"] >= self.thresholds["mq2Threshold"]
+        effective_scenario = "mq2" if threshold_mq2 else self.scenario
+        if effective_scenario == "mq2":
             sensors["mq2"] = 3150
             targets.update({"fanPercent": 100, "servoPosition": "ventilation-open", "relayOn": False, "buzzerMode": "alarm", "rgbState": "red"})
-        elif self.scenario == "water":
+        elif effective_scenario == "water":
             sensors["water"] = True
             targets.update({"relayOn": False, "buzzerMode": "intermittent", "rgbState": "blue-red"})
-        elif self.scenario == "flame":
+        elif effective_scenario == "flame":
             sensors["flame"] = True
             targets.update({"fanPercent": 0, "servoPosition": "safety-closed", "relayOn": False, "buzzerMode": "alarm", "rgbState": "red"})
 
-        if self.scenario != "normal":
-            alerts = [self.scenario]
-            safety = {"state": "risk", "primary": self.scenario, "causes": [self.scenario], "overrideActive": True, "buzzerRequested": True, "buzzerMuted": not self.buzzer_enabled}
+        if effective_scenario != "normal":
+            alerts = [effective_scenario]
+            safety = {"state": "risk", "primary": effective_scenario, "causes": [effective_scenario], "overrideActive": True, "buzzerRequested": True, "buzzerMuted": not self.buzzer_enabled}
 
         if safety["buzzerRequested"] and not self.buzzer_enabled:
             targets["buzzerMode"] = "off"
         actuators = simulated_actuators(targets)
 
         context = profile["context"]
-        context.update({"candidate": self.mode, "confirmedByUser": False})
+        candidate = self.feedback_mode if self.context_feedback == "corrected" and self.feedback_mode else self.mode
+        if self.context_feedback == "confirmed":
+            context["status"] = "confirmed"
+        elif self.context_feedback == "corrected":
+            context["status"] = "corrected"
+        context.update({
+            "candidate": candidate,
+            "confirmedByUser": self.context_feedback == "confirmed",
+            "correctedByUser": self.context_feedback == "corrected",
+            "feedback": self.context_feedback,
+        })
         return {
             "type": "telemetry",
             "project": PROJECT_ID,
@@ -223,13 +252,33 @@ class MockBoardState:
             "sensors": sensors,
             "sensorValid": {key: True for key in sensors},
             "sensorAgeMs": {key: 0 for key in sensors},
+            "thresholds": deepcopy(self.thresholds),
             "actuatorTargets": targets,
             "actuators": actuators,
             "alerts": alerts,
             "safety": safety,
             "context": context,
-            "health": {"stage": "mock-stage5-integrated", "source": "mock-board", "sensorsReady": True, "actuatorsReady": True, "actuatorApplyState": "simulated", "contextReady": True, "safetyReady": True, "hardwareVerified": False, "calibrationRequired": True, "buzzerEnabled": self.buzzer_enabled, "mq2AlertRaw": 2600},
+            "health": {"stage": "mock-stage5-integrated", "source": "mock-board", "sensorsReady": True, "actuatorsReady": True, "actuatorApplyState": "simulated", "contextReady": True, "safetyReady": True, "hardwareVerified": False, "calibrationRequired": True, "buzzerEnabled": self.buzzer_enabled, "mq2AlertRaw": self.thresholds["mq2Threshold"], "thresholdPersistence": "ram-only"},
         }
+
+    def _candidate(self) -> str:
+        return self.feedback_mode if self.context_feedback == "corrected" and self.feedback_mode else self.mode
+
+    def _apply_threshold_setting(self, settings: Any) -> bool:
+        if not isinstance(settings, dict) or len(settings) != 1:
+            return False
+        key, value = next(iter(settings.items()))
+        rule = THRESHOLD_RULES.get(key)
+        if rule is None or not isinstance(value, (int, float)) or isinstance(value, bool):
+            return False
+        if isinstance(value, float) and not value.is_integer():
+            return False
+        numeric = int(value)
+        low, high, step = rule
+        if numeric < low or numeric > high or (numeric - low) % step != 0:
+            return False
+        self.thresholds[key] = numeric
+        return True
 
     def _apply_manual_targets(self, targets: dict[str, Any]) -> None:
         mappings = {
@@ -270,7 +319,7 @@ class MockBoardState:
         if command.get("type") != "command":
             return self._ack(command_id, False, "unsupported_type")
 
-        operations = [key for key in ("mode", "mockScenario", "set", "actuator") if key in command]
+        operations = [key for key in ("mode", "mockScenario", "set", "actuator", "contextConfirm", "contextCorrect") if key in command]
         if len(operations) != 1:
             return self._ack(command_id, False, "unsupported_command")
 
@@ -280,6 +329,8 @@ class MockBoardState:
             if mode not in MODES:
                 return self._ack(command_id, False, "unsupported_mode")
             self.mode = mode
+            self.context_feedback = "none"
+            self.feedback_mode = None
         elif operation == "mockScenario":
             scenario = command["mockScenario"]
             if scenario not in MOCK_SCENARIOS:
@@ -287,9 +338,29 @@ class MockBoardState:
             self.scenario = scenario
         elif operation == "set":
             settings = command["set"]
-            if not isinstance(settings, dict) or set(settings) != {"buzzerEnabled"} or not isinstance(settings["buzzerEnabled"], bool):
-                return self._ack(command_id, False, "unsupported_command")
-            self.buzzer_enabled = settings["buzzerEnabled"]
+            if isinstance(settings, dict) and set(settings) == {"buzzerEnabled"} and isinstance(settings["buzzerEnabled"], bool):
+                self.buzzer_enabled = settings["buzzerEnabled"]
+            elif not self._apply_threshold_setting(settings):
+                return self._ack(command_id, False, "invalid_threshold")
+        elif operation == "contextConfirm":
+            confirmation = command["contextConfirm"]
+            if (
+                not isinstance(confirmation, dict)
+                or set(confirmation) != {"candidate", "correct"}
+                or confirmation.get("candidate") not in MODES
+                or confirmation.get("correct") is not True
+            ):
+                return self._ack(command_id, False, "invalid_context_confirmation")
+            if confirmation["candidate"] != self._candidate():
+                return self._ack(command_id, False, "candidate_mismatch")
+            self.context_feedback = "confirmed"
+            self.feedback_mode = confirmation["candidate"]
+        elif operation == "contextCorrect":
+            correction = command["contextCorrect"]
+            if not isinstance(correction, dict) or set(correction) != {"mode"} or correction.get("mode") not in MODES:
+                return self._ack(command_id, False, "invalid_context_correction")
+            self.context_feedback = "corrected"
+            self.feedback_mode = correction["mode"]
         else:
             if not self._apply_actuator_command(command["actuator"]):
                 return self._ack(command_id, False, "invalid_actuator_command")
@@ -298,7 +369,7 @@ class MockBoardState:
     def _ack(self, command_id: str | None, ok: bool, error: str | None = None) -> dict[str, Any]:
         ack: dict[str, Any] = {"type": "ack", "project": PROJECT_ID, "id": command_id, "ok": ok, "mock": True}
         if ok:
-            ack["applied"] = {"mode": self.mode, "mockScenario": self.scenario, "buzzerEnabled": self.buzzer_enabled, "manualOverride": deepcopy(self.manual_overrides)}
+            ack["applied"] = {"mode": self.mode, "mockScenario": self.scenario, "buzzerEnabled": self.buzzer_enabled, "manualOverride": deepcopy(self.manual_overrides), "contextFeedback": self.context_feedback, "feedbackMode": self.feedback_mode, "thresholds": deepcopy(self.thresholds)}
         else:
             ack["error"] = error or "unsupported_command"
         return ack

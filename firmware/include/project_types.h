@@ -3,6 +3,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "project_config.h"
+
+
+struct RuntimeThresholds {
+  uint16_t lightThreshold = PROVISIONAL_LIGHT_BRIGHT_RAW;
+  uint16_t soundThreshold = PROVISIONAL_SOUND_STUDY_MAX_RAW;
+  float temperatureThreshold = PROVISIONAL_TEMPERATURE_HIGH_C;
+  float humidityThreshold = PROVISIONAL_HUMIDITY_HIGH_PERCENT;
+  uint16_t mq2Threshold = PROVISIONAL_MQ2_ALERT_RAW;
+};
 
 enum class ContextMode : uint8_t {
   Detect,
@@ -118,6 +128,7 @@ struct ContextResult {
   EvidenceList opposing;
   EvidenceList missing;
   bool confirmedByUser = false;
+  bool correctedByUser = false;
 };
 
 constexpr size_t MAX_SAFETY_CAUSES = 4;

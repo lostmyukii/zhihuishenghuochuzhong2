@@ -135,6 +135,16 @@
     return null;
   }
 
+  function requiredCapability(intent) {
+    const name = intent?.intent;
+    if (name === "setMode") return "setMode";
+    if (name === "muteBuzzer") return "setBuzzerEnabled";
+    if (name === "confirmContext") return "confirmContext";
+    if (name === "correctContext") return "correctContext";
+    if (name === "setThreshold") return "setThreshold";
+    return null;
+  }
+
   function safeContext(context) {
     const source = context && typeof context === "object" ? context : {};
     const result = {};
@@ -189,6 +199,7 @@
     parseIntent,
     sanitizeServerIntent,
     toCommand,
+    requiredCapability,
     intentRequest,
   };
 });

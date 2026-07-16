@@ -698,6 +698,13 @@
     return "网页语义命令";
   }
 
+  function boardSupportsVoiceIntent(intent) {
+    const capability = VoiceCore.requiredCapability(intent);
+    if (!capability || latestHelloSource !== currentSource) return false;
+    const commands = latestHello?.capabilities?.commands;
+    return Array.isArray(commands) && commands.includes(capability);
+  }
+
   async function requestVoiceIntent(text) {
     const response = await fetch(intentEndpoint, {
       method: "POST",
@@ -736,10 +743,12 @@
       logEvent(`网页语音只读查询：${VOICE_INTENT_COPY[intent.intent]}`);
       return;
     }
-    if (["confirmContext", "correctContext", "setThreshold"].includes(intent.intent)) {
-      voiceSession = Object.freeze({...voiceSession, note: `${voiceCommandDescription(intent)}；当前真板固件0.4.0待协议升级，本批次未发送。`});
+    const requiredCapability = VoiceCore.requiredCapability(intent);
+    if (requiredCapability && !boardSupportsVoiceIntent(intent)) {
+      const firmware = latestHelloSource === currentSource ? latestHello?.firmware || "未知版本" : "未捕获启动身份";
+      voiceSession = Object.freeze({...voiceSession, note: `${voiceCommandDescription(intent)}；当前链路${firmware}未声明${requiredCapability}能力，固件待升级，本次未发送。`});
       renderVoiceSession(voiceSession.note, "waiting");
-      logEvent(`网页语音已解析但固件待升级：${intent.intent}`);
+      logEvent(`网页语音已解析但固件待升级：${requiredCapability}`);
       return;
     }
 

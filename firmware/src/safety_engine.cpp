@@ -94,6 +94,11 @@ void applyFlameOverride(SafetyResult& result) {
 }  // namespace
 
 SafetyResult SafetyEngine::update(const SensorSnapshot& sensors, uint32_t nowMs) {
+  return update(sensors, nowMs, RuntimeThresholds{});
+}
+
+SafetyResult SafetyEngine::update(const SensorSnapshot& sensors, uint32_t nowMs,
+                                  const RuntimeThresholds& thresholds) {
   const bool mq2Fresh = isFresh(sensors.mq2, nowMs);
   const bool waterFresh = isFresh(sensors.water, nowMs);
   const bool flameFresh = isFresh(sensors.flame, nowMs);
@@ -106,7 +111,11 @@ SafetyResult SafetyEngine::update(const SensorSnapshot& sensors, uint32_t nowMs)
   } else if (mq2Fresh) {
     if (mq2Active_) {
       mq2AlertSamples_ = 0;
-      if (sensors.mq2.value <= PROVISIONAL_MQ2_RECOVERY_RAW) {
+      const uint16_t recoveryThreshold =
+          thresholds.mq2Threshold > MQ2_THRESHOLD_HYSTERESIS_RAW
+              ? thresholds.mq2Threshold - MQ2_THRESHOLD_HYSTERESIS_RAW
+              : 0;
+      if (sensors.mq2.value <= recoveryThreshold) {
         if (mq2RecoverySamples_ < DIGITAL_RECOVERY_SAMPLES) {
           ++mq2RecoverySamples_;
         }
@@ -119,7 +128,7 @@ SafetyResult SafetyEngine::update(const SensorSnapshot& sensors, uint32_t nowMs)
       }
     } else {
       mq2RecoverySamples_ = 0;
-      if (sensors.mq2.value >= PROVISIONAL_MQ2_ALERT_RAW) {
+      if (sensors.mq2.value >= thresholds.mq2Threshold) {
         if (mq2AlertSamples_ < DIGITAL_CONFIRM_SAMPLES) {
           ++mq2AlertSamples_;
         }

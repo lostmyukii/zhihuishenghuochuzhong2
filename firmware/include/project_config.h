@@ -7,7 +7,7 @@ constexpr const char* PROJECT_ID = "smartlife-junior-context";
 constexpr const char* PROFILE_ID = "smartlife-junior-context-detective-v1";
 constexpr const char* DEVICE_NAME = "N16R8 无摄像头家庭情境侦探屋";
 constexpr const char* BOARD_ID = "n16r8_esp32s3";
-constexpr const char* FIRMWARE_VERSION = "0.4.0";
+constexpr const char* FIRMWARE_VERSION = "0.4.1";
 
 constexpr uint32_t SERIAL_BAUD = 115200;
 
@@ -35,6 +35,7 @@ constexpr uint8_t DIGITAL_CONFIRM_SAMPLES = 3;
 constexpr uint8_t DIGITAL_RECOVERY_SAMPLES = 3;
 constexpr uint16_t PROVISIONAL_MQ2_ALERT_RAW = 2600;
 constexpr uint16_t PROVISIONAL_MQ2_RECOVERY_RAW = 2400;
+constexpr uint16_t MQ2_THRESHOLD_HYSTERESIS_RAW = 200;
 constexpr uint32_t FAST_SAFETY_STALE_MS = 1500;
 constexpr uint32_t BUZZER_TEST_PULSE_MS = 800;
 constexpr uint32_t BUZZER_INTERMITTENT_MS = 500;

@@ -8,10 +8,11 @@ bool dhtValid(const SensorSnapshot& sensors) {
   return sensors.temperature.valid && sensors.humidity.valid;
 }
 
-bool dhtHigh(const SensorSnapshot& sensors) {
+bool dhtHigh(const SensorSnapshot& sensors,
+             const RuntimeThresholds& thresholds) {
   return dhtValid(sensors) &&
-         (sensors.temperature.value >= PROVISIONAL_TEMPERATURE_HIGH_C ||
-          sensors.humidity.value >= PROVISIONAL_HUMIDITY_HIGH_PERCENT);
+         (sensors.temperature.value >= thresholds.temperatureThreshold ||
+          sensors.humidity.value >= thresholds.humidityThreshold);
 }
 
 void applyOverride(ActuatorTarget& target, const ActuatorOverride& overrideTarget) {
@@ -36,7 +37,13 @@ void applyOverride(ActuatorTarget& target, const ActuatorOverride& overrideTarge
 
 ActuatorTarget ActuatorPlanner::normalTarget(ContextMode mode,
                                               const SensorSnapshot& sensors,
-                                              const ContextResult&) const {
+                                              const ContextResult& context) const {
+  return normalTarget(mode, sensors, context, RuntimeThresholds{});
+}
+
+ActuatorTarget ActuatorPlanner::normalTarget(
+    ContextMode mode, const SensorSnapshot& sensors, const ContextResult&,
+    const RuntimeThresholds& thresholds) const {
   ActuatorTarget target;
   switch (mode) {
     case ContextMode::Study:
@@ -47,10 +54,10 @@ ActuatorTarget ActuatorPlanner::normalTarget(ContextMode mode,
         target.relayOn = true;
       }
       if (sensors.sound.valid &&
-          sensors.sound.value > PROVISIONAL_SOUND_STUDY_MAX_RAW) {
+          sensors.sound.value > thresholds.soundThreshold) {
         target.rgbState = RgbState::Orange;
       }
-      if (dhtHigh(sensors)) {
+      if (dhtHigh(sensors, thresholds)) {
         target.fanPercent = FAN_LOW_PERCENT;
         target.servoPosition = ServoPosition::VentilationOpen;
       }
@@ -59,7 +66,7 @@ ActuatorTarget ActuatorPlanner::normalTarget(ContextMode mode,
     case ContextMode::Rest:
       target.servoPosition = ServoPosition::Rest;
       target.rgbState = RgbState::BlueLow;
-      if (dhtHigh(sensors)) {
+      if (dhtHigh(sensors, thresholds)) {
         target.fanPercent = FAN_LOW_PERCENT;
       }
       return target;
@@ -69,8 +76,9 @@ ActuatorTarget ActuatorPlanner::normalTarget(ContextMode mode,
         target.rgbState = RgbState::Gray;
         return target;
       }
-      target.fanPercent = dhtHigh(sensors) ? FAN_VENTILATION_PERCENT
-                                          : FAN_LOW_PERCENT;
+      target.fanPercent = dhtHigh(sensors, thresholds)
+                              ? FAN_VENTILATION_PERCENT
+                              : FAN_LOW_PERCENT;
       target.servoPosition = ServoPosition::VentilationOpen;
       target.rgbState = RgbState::Cyan;
       return target;
@@ -90,8 +98,16 @@ ActuatorPlan ActuatorPlanner::plan(ContextMode mode, const SensorSnapshot& senso
                                     const ContextResult& context,
                                     const SafetyResult& safety,
                                     bool buzzerEnabled) const {
+  return plan(mode, sensors, context, safety, buzzerEnabled,
+              RuntimeThresholds{});
+}
+
+ActuatorPlan ActuatorPlanner::plan(
+    ContextMode mode, const SensorSnapshot& sensors,
+    const ContextResult& context, const SafetyResult& safety,
+    bool buzzerEnabled, const RuntimeThresholds& thresholds) const {
   ActuatorPlan result;
-  result.normalTarget = normalTarget(mode, sensors, context);
+  result.normalTarget = normalTarget(mode, sensors, context, thresholds);
   result.finalTarget = result.normalTarget;
   result.safety = safety;
   applyOverride(result.finalTarget, safety.overrideTarget);

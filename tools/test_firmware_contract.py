@@ -76,7 +76,7 @@ class FirmwareContractTests(unittest.TestCase):
         for token in [
             'PROJECT_ID = "smartlife-junior-context"',
             'PROFILE_ID = "smartlife-junior-context-detective-v1"',
-            'FIRMWARE_VERSION = "0.4.0"',
+            'FIRMWARE_VERSION = "0.4.1"',
             "SERIAL_BAUD = 115200",
             "FAST_SENSOR_INTERVAL_MS = 200",
             "DHT_INTERVAL_MS = 2000",
@@ -403,6 +403,55 @@ class FirmwareContractTests(unittest.TestCase):
         self.assertIn("actuatorDriver.tick(now)", source)
         self.assertIn("currentSafety.overrideTarget", source)
         self.assertNotIn("buzzerEnabled = false;  // actuator", source)
+
+    def test_stage_six_context_feedback_and_runtime_threshold_contract_is_explicit(self):
+        source = self.read_required(MAIN_CPP)
+        types = self.read_required(PROJECT_TYPES)
+        context_header = self.read_required(CONTEXT_HEADER)
+        safety_header = self.read_required(SAFETY_HEADER)
+        planner_header = self.read_required(PLANNER_HEADER)
+
+        for token in [
+            "struct RuntimeThresholds",
+            "lightThreshold",
+            "soundThreshold",
+            "temperatureThreshold",
+            "humidityThreshold",
+            "mq2Threshold",
+            "correctedByUser",
+        ]:
+            with self.subTest(token=token):
+                self.assertIn(token, types)
+
+        for token in [
+            'commands.add("confirmContext")',
+            'commands.add("correctContext")',
+            'commands.add("setThreshold")',
+            'command["contextConfirm"]',
+            'command["contextCorrect"]',
+            'command["set"]',
+            "settings.size() != 1",
+            "applyThresholdSetting",
+            'root["thresholds"].to<JsonObject>()',
+            'context["correctedByUser"]',
+            'context["feedback"]',
+            'health["thresholdPersistence"] = "ram-only"',
+            '"invalid_context_confirmation"',
+            '"candidate_mismatch"',
+            '"invalid_context_correction"',
+            '"invalid_threshold"',
+        ]:
+            with self.subTest(token=token):
+                self.assertIn(token, source)
+
+        self.assertIn("const RuntimeThresholds& thresholds", context_header)
+        self.assertIn("const RuntimeThresholds& thresholds", safety_header)
+        self.assertIn("const RuntimeThresholds& thresholds", planner_header)
+        self.assertIn("RuntimeThresholds runtimeThresholds", source)
+        self.assertIn("safetyEngine.update(snapshot, nowMs, runtimeThresholds)", source)
+        self.assertIn("contextEngine.evaluate(snapshot, selectedContextMode(), runtimeThresholds)", source)
+        self.assertNotIn("Preferences", source)
+        self.assertNotIn("nvs_", source.lower())
 
     def test_agents_and_gitignore_preserve_no_flash_boundary(self):
         agents = self.read_required(ROOT / "AGENTS.md")

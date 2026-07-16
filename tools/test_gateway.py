@@ -58,6 +58,14 @@ class GatewayContractTests(unittest.TestCase):
             ["detect", "study", "rest", "ventilation", "energy", "custom"],
         )
         self.assertEqual(hello["capabilities"]["mockScenarios"], ["normal", "mq2", "water", "flame"])
+        self.assertEqual(
+            hello["capabilities"]["commands"],
+            ["setMode", "setMockScenario", "setBuzzerEnabled", "setActuator", "confirmContext", "correctContext", "setThreshold"],
+        )
+        self.assertEqual(
+            hello["capabilities"]["thresholdFields"],
+            ["lightThreshold", "soundThreshold", "temperatureThreshold", "humidityThreshold", "mq2Threshold"],
+        )
         self.assertFalse(hello["features"]["localVoiceNlu"])
         self.assertFalse(hello["features"]["mcp"])
         self.assertTrue(hello["features"]["safetyReasoning"])
@@ -187,6 +195,91 @@ class GatewayContractTests(unittest.TestCase):
         )
         self.assertFalse(invalid["ok"])
         self.assertEqual(invalid["error"], "invalid_actuator_command")
+
+    def test_context_confirmation_and_correction_have_same_id_ack_and_telemetry_state(self):
+        state = gateway.MockBoardState()
+        state.apply_command({"type": "command", "id": "study", "mode": "study"})
+
+        confirmed = state.apply_command(
+            {"type": "command", "id": "confirm-1", "contextConfirm": {"candidate": "study", "correct": True}}
+        )
+        confirmed_telemetry = state.telemetry()
+        self.assertTrue(confirmed["ok"])
+        self.assertEqual(confirmed["id"], "confirm-1")
+        self.assertEqual(confirmed_telemetry["context"]["candidate"], "study")
+        self.assertEqual(confirmed_telemetry["context"]["status"], "confirmed")
+        self.assertTrue(confirmed_telemetry["context"]["confirmedByUser"])
+        self.assertFalse(confirmed_telemetry["context"]["correctedByUser"])
+        self.assertEqual(confirmed_telemetry["context"]["feedback"], "confirmed")
+
+        corrected = state.apply_command(
+            {"type": "command", "id": "correct-1", "contextCorrect": {"mode": "rest"}}
+        )
+        corrected_telemetry = state.telemetry()
+        self.assertTrue(corrected["ok"])
+        self.assertEqual(corrected["id"], "correct-1")
+        self.assertEqual(corrected_telemetry["mode"], "study")
+        self.assertEqual(corrected_telemetry["context"]["candidate"], "rest")
+        self.assertEqual(corrected_telemetry["context"]["status"], "corrected")
+        self.assertFalse(corrected_telemetry["context"]["confirmedByUser"])
+        self.assertTrue(corrected_telemetry["context"]["correctedByUser"])
+        self.assertEqual(corrected_telemetry["context"]["feedback"], "corrected")
+
+        failures = [
+            ({"type": "command", "id": "confirm-false", "contextConfirm": {"candidate": "study", "correct": False}}, "invalid_context_confirmation"),
+            ({"type": "command", "id": "confirm-missing", "contextConfirm": {"candidate": "study"}}, "invalid_context_confirmation"),
+            ({"type": "command", "id": "confirm-mismatch", "contextConfirm": {"candidate": "energy", "correct": True}}, "candidate_mismatch"),
+            ({"type": "command", "id": "correct-bad", "contextCorrect": {"mode": "party"}}, "invalid_context_correction"),
+        ]
+        for command, error in failures:
+            with self.subTest(error=error):
+                ack = state.apply_command(command)
+                self.assertEqual(ack["id"], command["id"])
+                self.assertFalse(ack["ok"])
+                self.assertEqual(ack["error"], error)
+
+    def test_runtime_thresholds_are_single_field_bounded_stepped_and_ram_only(self):
+        state = gateway.MockBoardState()
+        self.assertEqual(state.telemetry()["thresholds"], gateway.THRESHOLD_DEFAULTS)
+
+        valid = {
+            "lightThreshold": 1900,
+            "soundThreshold": 2350,
+            "temperatureThreshold": 29,
+            "humidityThreshold": 75,
+            "mq2Threshold": 2500,
+        }
+        for index, (key, value) in enumerate(valid.items()):
+            with self.subTest(key=key):
+                ack = state.apply_command({"type": "command", "id": f"threshold-{index}", "set": {key: value}})
+                self.assertTrue(ack["ok"])
+                self.assertEqual(ack["id"], f"threshold-{index}")
+                self.assertEqual(state.telemetry()["thresholds"][key], value)
+
+        invalid = [
+            {"set": {"soundThreshold": 651}},
+            {"set": {"temperatureThreshold": 46}},
+            {"set": {"humidityThreshold": True}},
+            {"set": {"mq2Threshold": 2650}},
+            {"set": {"lightThreshold": 1900, "soundThreshold": 650}},
+        ]
+        for index, payload in enumerate(invalid):
+            with self.subTest(payload=payload):
+                ack = state.apply_command({"type": "command", "id": f"invalid-threshold-{index}", **payload})
+                self.assertEqual(ack["id"], f"invalid-threshold-{index}")
+                self.assertFalse(ack["ok"])
+                self.assertEqual(ack["error"], "invalid_threshold")
+
+        state.apply_command({"type": "command", "id": "sensitive-mq2", "set": {"mq2Threshold": 350}})
+        telemetry = state.telemetry()
+        self.assertIn("mq2", telemetry["alerts"])
+        self.assertEqual(telemetry["health"]["mq2AlertRaw"], 350)
+        self.assertEqual(telemetry["health"]["thresholdPersistence"], "ram-only")
+
+        restarted = gateway.MockBoardState()
+        restarted_telemetry = restarted.telemetry()
+        self.assertEqual(restarted_telemetry["thresholds"], gateway.THRESHOLD_DEFAULTS)
+        self.assertEqual(restarted_telemetry["context"]["feedback"], "none")
 
     def test_command_ack_requires_id_and_rejects_unknown_values(self):
         state = gateway.MockBoardState()

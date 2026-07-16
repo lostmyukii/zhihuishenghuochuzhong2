@@ -7,6 +7,8 @@
 class SafetyEngine {
  public:
   SafetyResult update(const SensorSnapshot& sensors, uint32_t nowMs);
+  SafetyResult update(const SensorSnapshot& sensors, uint32_t nowMs,
+                      const RuntimeThresholds& thresholds);
 
  private:
   bool mq2Active_ = false;

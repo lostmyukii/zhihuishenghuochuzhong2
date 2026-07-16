@@ -73,6 +73,15 @@ test("control intents emit only standard commands with the supplied id", () => {
   });
 });
 
+test("each board-changing voice intent declares one hello capability", () => {
+  assert.equal(core.requiredCapability({intent: "setMode"}), "setMode");
+  assert.equal(core.requiredCapability({intent: "muteBuzzer"}), "setBuzzerEnabled");
+  assert.equal(core.requiredCapability({intent: "confirmContext"}), "confirmContext");
+  assert.equal(core.requiredCapability({intent: "correctContext"}), "correctContext");
+  assert.equal(core.requiredCapability({intent: "setThreshold"}), "setThreshold");
+  assert.equal(core.requiredCapability({intent: "queryContext"}), null);
+});
+
 test("thresholds are single-field, bounded and stepped", () => {
   const base = {project: core.PROJECT_ID, profileId: core.PROFILE_ID, intent: "setThreshold", confidence: 0.9};
   assert.equal(core.sanitizeServerIntent({...base, settings: {soundThreshold: 650}}).intent, "setThreshold");

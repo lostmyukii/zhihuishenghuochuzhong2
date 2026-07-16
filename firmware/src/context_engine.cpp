@@ -59,16 +59,17 @@ bool dhtValid(const SensorSnapshot& sensors) {
   return sensors.temperature.valid && sensors.humidity.valid;
 }
 
-ModelScore evaluateStudy(const SensorSnapshot& sensors) {
+ModelScore evaluateStudy(const SensorSnapshot& sensors,
+                         const RuntimeThresholds& thresholds) {
   ModelScore score;
   score.mode = ContextMode::Study;
   addEvidence(score, sensors.pir.valid, sensors.pir.value >= 0.5F, 3, true,
               "pir_active", "no_occupancy", "pir_missing");
   addEvidence(score, sensors.light.valid,
-              sensors.light.value >= PROVISIONAL_LIGHT_BRIGHT_RAW, 2, false,
+              sensors.light.value >= thresholds.lightThreshold, 2, false,
               "light_suitable", "light_not_suitable", "light_missing");
   addEvidence(score, sensors.sound.valid,
-              sensors.sound.value <= PROVISIONAL_SOUND_STUDY_MAX_RAW, 3, true,
+              sensors.sound.value <= thresholds.soundThreshold, 3, true,
               "sound_study_quiet", "sound_high", "sound_missing");
   addEvidence(score, dhtValid(sensors), comfortableDht(sensors), 1, false,
               "dht_comfortable", "dht_outside_comfort", "dht_missing");
@@ -93,14 +94,15 @@ ModelScore evaluateRest(const SensorSnapshot& sensors) {
   return score;
 }
 
-ModelScore evaluateVentilation(const SensorSnapshot& sensors) {
+ModelScore evaluateVentilation(const SensorSnapshot& sensors,
+                               const RuntimeThresholds& thresholds) {
   ModelScore score;
   score.mode = ContextMode::Ventilation;
   addEvidence(score, sensors.temperature.valid,
-              sensors.temperature.value >= PROVISIONAL_TEMPERATURE_HIGH_C, 3, true,
+              sensors.temperature.value >= thresholds.temperatureThreshold, 3, true,
               "temperature_high", "temperature_not_high", "temperature_missing");
   addEvidence(score, sensors.humidity.valid,
-              sensors.humidity.value >= PROVISIONAL_HUMIDITY_HIGH_PERCENT, 3, true,
+              sensors.humidity.value >= thresholds.humidityThreshold, 3, true,
               "humidity_high", "humidity_not_high", "humidity_missing");
   addEvidence(score, sensors.pir.valid, sensors.pir.value >= 0.5F, 2, false,
               "pir_active", "no_occupancy", "pir_missing");
@@ -108,13 +110,14 @@ ModelScore evaluateVentilation(const SensorSnapshot& sensors) {
   return score;
 }
 
-ModelScore evaluateEnergy(const SensorSnapshot& sensors) {
+ModelScore evaluateEnergy(const SensorSnapshot& sensors,
+                          const RuntimeThresholds& thresholds) {
   ModelScore score;
   score.mode = ContextMode::Energy;
   addEvidence(score, sensors.pir.valid, sensors.pir.value < 0.5F, 4, true,
               "no_occupancy", "pir_active", "pir_missing");
   addEvidence(score, sensors.light.valid,
-              sensors.light.value >= PROVISIONAL_LIGHT_BRIGHT_RAW, 2, false,
+              sensors.light.value >= thresholds.lightThreshold, 2, false,
               "daylight_available", "light_not_suitable", "light_missing");
   addEvidence(score, sensors.sound.valid,
               sensors.sound.value <= PROVISIONAL_SOUND_QUIET_MAX_RAW, 1, false,
@@ -137,6 +140,12 @@ void copyEvidence(ContextResult& result, const ModelScore& score) {
 
 ContextResult ContextEngine::evaluate(const SensorSnapshot& sensors,
                                       ContextMode selectedMode) const {
+  return evaluate(sensors, selectedMode, RuntimeThresholds{});
+}
+
+ContextResult ContextEngine::evaluate(
+    const SensorSnapshot& sensors, ContextMode selectedMode,
+    const RuntimeThresholds& thresholds) const {
   ContextResult result;
   if (selectedMode == ContextMode::Custom) {
     result.candidate = ContextMode::Custom;
@@ -154,8 +163,9 @@ ContextResult ContextEngine::evaluate(const SensorSnapshot& sensors,
     return result;
   }
 
-  ModelScore scores[] = {evaluateStudy(sensors), evaluateRest(sensors),
-                         evaluateVentilation(sensors), evaluateEnergy(sensors)};
+  ModelScore scores[] = {evaluateStudy(sensors, thresholds), evaluateRest(sensors),
+                         evaluateVentilation(sensors, thresholds),
+                         evaluateEnergy(sensors, thresholds)};
   int bestIndex = -1;
   int secondIndex = -1;
   int bestMissingIndex = 0;

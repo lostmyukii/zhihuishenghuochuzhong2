@@ -49,6 +49,17 @@ int main() {
   assert(mq2Alarm.overrideTarget.target.fanPercent == 100);
   assert(mq2Alarm.overrideTarget.target.servoPosition == ServoPosition::VentilationOpen);
 
+  RuntimeThresholds sensitiveThresholds;
+  sensitiveThresholds.mq2Threshold = 2000;
+  SafetyEngine runtimeThresholdEngine;
+  SensorSnapshot runtimeMq2 = safeSnapshot(now);
+  runtimeMq2.mq2.value = 2100;
+  assert(!hasCause(runtimeThresholdEngine.update(runtimeMq2, now, sensitiveThresholds), SafetyCause::Mq2));
+  runtimeMq2.mq2.updatedAtMs = now + 200;
+  assert(!hasCause(runtimeThresholdEngine.update(runtimeMq2, now + 200, sensitiveThresholds), SafetyCause::Mq2));
+  runtimeMq2.mq2.updatedAtMs = now + 400;
+  assert(hasCause(runtimeThresholdEngine.update(runtimeMq2, now + 400, sensitiveThresholds), SafetyCause::Mq2));
+
   mq2.mq2.value = 2500;
   mq2.mq2.updatedAtMs = now + 600;
   assert(hasCause(mq2Engine.update(mq2, now + 600), SafetyCause::Mq2));

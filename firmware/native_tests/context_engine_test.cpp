@@ -35,6 +35,13 @@ int main() {
   assert(studyResult.coverage == 100);
   assert(studyResult.match == 100);
 
+  RuntimeThresholds stricterContext;
+  stricterContext.lightThreshold = 3000;
+  ContextResult thresholdStudy =
+      engine.evaluate(study, ContextMode::Detect, stricterContext);
+  assert(thresholdStudy.candidate == ContextMode::Study);
+  assert(thresholdStudy.match == 78);
+
   SensorSnapshot tied = comfortableRoom();
   tied.light = sample(1300);
   ContextResult ambiguous = engine.evaluate(tied, ContextMode::Detect);
@@ -55,6 +62,12 @@ int main() {
   assert(ventilationResult.candidate == ContextMode::Ventilation);
   assert(ventilationResult.status == ContextStatus::Possible);
   assert(ventilationResult.match == 100);
+
+  stricterContext.temperatureThreshold = 31;
+  stricterContext.humidityThreshold = 80;
+  ContextResult thresholdVentilation =
+      engine.evaluate(ventilation, ContextMode::Ventilation, stricterContext);
+  assert(thresholdVentilation.status == ContextStatus::Unknown);
 
   SensorSnapshot staleDht = ventilation;
   staleDht.temperature.valid = false;

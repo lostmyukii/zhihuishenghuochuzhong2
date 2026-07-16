@@ -17,6 +17,16 @@ bool buzzerEnabled = true;
 bool decisionDirty = true;
 uint32_t lastTelemetryAt = 0;
 uint32_t lastSafetySampleAt = UINT32_MAX;
+RuntimeThresholds runtimeThresholds;
+
+enum class ContextFeedbackKind : uint8_t { None, Confirmed, Corrected };
+
+struct ContextFeedbackState {
+  ContextFeedbackKind kind = ContextFeedbackKind::None;
+  ContextMode mode = ContextMode::Detect;
+};
+
+ContextFeedbackState contextFeedback;
 SensorSampler sensors;
 ContextEngine contextEngine;
 SafetyEngine safetyEngine;
@@ -38,6 +48,17 @@ bool isAllowedMode(const char* mode) {
          (strcmp(mode, "detect") == 0 || strcmp(mode, "study") == 0 ||
           strcmp(mode, "rest") == 0 || strcmp(mode, "ventilation") == 0 ||
           strcmp(mode, "energy") == 0 || strcmp(mode, "custom") == 0);
+}
+
+ContextMode contextModeFromName(const char* mode) {
+  if (mode != nullptr && strcmp(mode, "study") == 0) return ContextMode::Study;
+  if (mode != nullptr && strcmp(mode, "rest") == 0) return ContextMode::Rest;
+  if (mode != nullptr && strcmp(mode, "ventilation") == 0) {
+    return ContextMode::Ventilation;
+  }
+  if (mode != nullptr && strcmp(mode, "energy") == 0) return ContextMode::Energy;
+  if (mode != nullptr && strcmp(mode, "custom") == 0) return ContextMode::Custom;
+  return ContextMode::Detect;
 }
 
 bool isAllowedServoPosition(const char* value) {
@@ -93,12 +114,48 @@ RgbState rgbStateFromName(const char* value) {
 }
 
 ContextMode selectedContextMode() {
-  if (selectedMode == "study") return ContextMode::Study;
-  if (selectedMode == "rest") return ContextMode::Rest;
-  if (selectedMode == "ventilation") return ContextMode::Ventilation;
-  if (selectedMode == "energy") return ContextMode::Energy;
-  if (selectedMode == "custom") return ContextMode::Custom;
-  return ContextMode::Detect;
+  return contextModeFromName(selectedMode.c_str());
+}
+
+const char* contextFeedbackName() {
+  switch (contextFeedback.kind) {
+    case ContextFeedbackKind::Confirmed:
+      return "confirmed";
+    case ContextFeedbackKind::Corrected:
+      return "corrected";
+    case ContextFeedbackKind::None:
+    default:
+      return "none";
+  }
+}
+
+void clearContextFeedback() {
+  contextFeedback = ContextFeedbackState{};
+}
+
+void applyContextFeedback() {
+  currentContext.confirmedByUser = false;
+  currentContext.correctedByUser = false;
+  if (contextFeedback.kind == ContextFeedbackKind::Confirmed) {
+    if (currentContext.candidate != contextFeedback.mode) {
+      clearContextFeedback();
+      return;
+    }
+    currentContext.status = ContextStatus::Confirmed;
+    currentContext.confirmedByUser = true;
+  } else if (contextFeedback.kind == ContextFeedbackKind::Corrected) {
+    currentContext.candidate = contextFeedback.mode;
+    currentContext.status = ContextStatus::Corrected;
+    currentContext.correctedByUser = true;
+  }
+}
+
+void addThresholds(JsonObject target) {
+  target["lightThreshold"] = runtimeThresholds.lightThreshold;
+  target["soundThreshold"] = runtimeThresholds.soundThreshold;
+  target["temperatureThreshold"] = runtimeThresholds.temperatureThreshold;
+  target["humidityThreshold"] = runtimeThresholds.humidityThreshold;
+  target["mq2Threshold"] = runtimeThresholds.mq2Threshold;
 }
 
 void addStageHealth(JsonObject health) {
@@ -148,12 +205,15 @@ void applyManualOverrides(ActuatorTarget& target) {
 void updateDecision(uint32_t nowMs) {
   const SensorSnapshot& snapshot = sensors.snapshot();
   if (snapshot.mq2.updatedAtMs != lastSafetySampleAt) {
-    currentSafety = safetyEngine.update(snapshot, nowMs);
+    currentSafety = safetyEngine.update(snapshot, nowMs, runtimeThresholds);
     lastSafetySampleAt = snapshot.mq2.updatedAtMs;
   }
-  currentContext = contextEngine.evaluate(snapshot, selectedContextMode());
+  currentContext =
+      contextEngine.evaluate(snapshot, selectedContextMode(), runtimeThresholds);
+  applyContextFeedback();
   currentPlan = actuatorPlanner.plan(selectedContextMode(), snapshot, currentContext,
-                                     currentSafety, buzzerEnabled);
+                                     currentSafety, buzzerEnabled,
+                                     runtimeThresholds);
   applyManualOverrides(currentPlan.finalTarget);
   currentApply = actuatorDriver.apply(currentPlan.finalTarget, nowMs);
   decisionDirty = false;
@@ -205,6 +265,9 @@ void emitHello() {
   commands.add("setMode");
   commands.add("setBuzzerEnabled");
   commands.add("setActuator");
+  commands.add("confirmContext");
+  commands.add("correctContext");
+  commands.add("setThreshold");
   JsonArray modes = capabilities["modes"].to<JsonArray>();
   modes.add("detect");
   modes.add("study");
@@ -212,11 +275,18 @@ void emitHello() {
   modes.add("ventilation");
   modes.add("energy");
   modes.add("custom");
+  JsonArray thresholdFields = capabilities["thresholdFields"].to<JsonArray>();
+  thresholdFields.add("lightThreshold");
+  thresholdFields.add("soundThreshold");
+  thresholdFields.add("temperatureThreshold");
+  thresholdFields.add("humidityThreshold");
+  thresholdFields.add("mq2Threshold");
 
   JsonObject health = root["health"].to<JsonObject>();
   addStageHealth(health);
   health["sensorSampling"] = "real-gpio-unverified";
-  health["thresholdProfile"] = "provisional-unverified";
+  health["thresholdProfile"] = "runtime-unverified";
+  health["thresholdPersistence"] = "ram-only";
   health["mq2Divider"] = "required-if-powered-at-5v";
   health["buzzerEnabled"] = buzzerEnabled;
 
@@ -273,6 +343,9 @@ void emitTelemetry() {
   root["uptimeMs"] = nowMs;
   root["mode"] = selectedMode;
 
+  JsonObject thresholds = root["thresholds"].to<JsonObject>();
+  addThresholds(thresholds);
+
   JsonObject sensorValues = root["sensors"].to<JsonObject>();
   sensorValues["light"] = static_cast<uint16_t>(snapshot.light.value);
   sensorValues["sound"] = static_cast<uint16_t>(snapshot.sound.value);
@@ -312,6 +385,13 @@ void emitTelemetry() {
   context["match"] = currentContext.match;
   context["status"] = contextStatusName(currentContext.status);
   context["confirmedByUser"] = currentContext.confirmedByUser;
+  context["correctedByUser"] = currentContext.correctedByUser;
+  context["feedback"] = contextFeedbackName();
+  if (contextFeedback.kind == ContextFeedbackKind::None) {
+    context["feedbackMode"] = nullptr;
+  } else {
+    context["feedbackMode"] = contextModeName(contextFeedback.mode);
+  }
   JsonArray supporting = context["supporting"].to<JsonArray>();
   JsonArray opposing = context["opposing"].to<JsonArray>();
   JsonArray missing = context["missing"].to<JsonArray>();
@@ -357,7 +437,8 @@ void emitTelemetry() {
   JsonObject health = root["health"].to<JsonObject>();
   addStageHealth(health);
   health["sensorSampling"] = "real-gpio-unverified";
-  health["thresholdProfile"] = "provisional-unverified";
+  health["thresholdProfile"] = "runtime-unverified";
+  health["thresholdPersistence"] = "ram-only";
   health["dht"] = snapshot.temperature.valid
                       ? "ok"
                       : (sensors.dhtEverValid() ? "stale" : "missing");
@@ -368,7 +449,7 @@ void emitTelemetry() {
   }
   health["mq2State"] = snapshot.mq2WarmedUp ? "ready-unverified" : "warming";
   health["mq2WarmupRemainingMs"] = snapshot.mq2WarmupRemainingMs;
-  health["mq2AlertRaw"] = PROVISIONAL_MQ2_ALERT_RAW;
+  health["mq2AlertRaw"] = runtimeThresholds.mq2Threshold;
   health["mq2Divider"] = "required-if-powered-at-5v";
   health["waterInputLevel"] = snapshot.waterInputHigh ? "high" : "low";
   health["waterTriggerLevel"] = "high-unverified";
@@ -396,6 +477,14 @@ void emitAck(const char* commandId, bool ok, const char* error = nullptr) {
     JsonObject applied = root["applied"].to<JsonObject>();
     applied["mode"] = selectedMode;
     applied["buzzerEnabled"] = buzzerEnabled;
+    applied["contextFeedback"] = contextFeedbackName();
+    if (contextFeedback.kind == ContextFeedbackKind::None) {
+      applied["feedbackMode"] = nullptr;
+    } else {
+      applied["feedbackMode"] = contextModeName(contextFeedback.mode);
+    }
+    JsonObject thresholds = applied["thresholds"].to<JsonObject>();
+    addThresholds(thresholds);
   } else {
     root["error"] = error == nullptr ? "unsupported_command" : error;
   }
@@ -435,6 +524,60 @@ void emitActuatorAck(const char* commandId, const char* actuatorName,
   applied["rgbState"] = rgbStateName(currentApply.rgbState);
   applied["safetyOverride"] = currentSafety.overrideActive;
   writeJsonLine(document);
+}
+
+bool validSteppedThreshold(JsonVariantConst value, int minimum, int maximum,
+                           int step) {
+  if (!value.is<int>()) return false;
+  const int requested = value.as<int>();
+  return requested >= minimum && requested <= maximum &&
+         (requested - minimum) % step == 0;
+}
+
+bool applyThresholdSetting(JsonObjectConst settings) {
+  if (settings.size() != 1) return false;
+  if (!settings["lightThreshold"].isNull()) {
+    if (!validSteppedThreshold(settings["lightThreshold"], 0, 4095, 100)) {
+      return false;
+    }
+    runtimeThresholds.lightThreshold =
+        settings["lightThreshold"].as<uint16_t>();
+    return true;
+  }
+  if (!settings["soundThreshold"].isNull()) {
+    if (!validSteppedThreshold(settings["soundThreshold"], 0, 4095, 50)) {
+      return false;
+    }
+    runtimeThresholds.soundThreshold =
+        settings["soundThreshold"].as<uint16_t>();
+    return true;
+  }
+  if (!settings["temperatureThreshold"].isNull()) {
+    if (!validSteppedThreshold(settings["temperatureThreshold"], 10, 45, 1)) {
+      return false;
+    }
+    runtimeThresholds.temperatureThreshold =
+        settings["temperatureThreshold"].as<float>();
+    return true;
+  }
+  if (!settings["humidityThreshold"].isNull()) {
+    if (!validSteppedThreshold(settings["humidityThreshold"], 20, 95, 5)) {
+      return false;
+    }
+    runtimeThresholds.humidityThreshold =
+        settings["humidityThreshold"].as<float>();
+    return true;
+  }
+  if (!settings["mq2Threshold"].isNull()) {
+    if (!validSteppedThreshold(settings["mq2Threshold"], 0, 2600, 50)) {
+      return false;
+    }
+    runtimeThresholds.mq2Threshold =
+        settings["mq2Threshold"].as<uint16_t>();
+    lastSafetySampleAt = UINT32_MAX;
+    return true;
+  }
+  return false;
 }
 
 bool validActuatorCommand(JsonObjectConst actuator) {
@@ -487,9 +630,13 @@ void handleCommandLine(const String& line) {
   const bool hasMode = !command["mode"].isNull();
   const bool hasSet = command["set"].is<JsonObjectConst>();
   const bool hasActuator = command["actuator"].is<JsonObjectConst>();
+  const bool hasContextConfirm = !command["contextConfirm"].isNull();
+  const bool hasContextCorrect = !command["contextCorrect"].isNull();
   const uint8_t operationCount = static_cast<uint8_t>(hasMode) +
                                  static_cast<uint8_t>(hasSet) +
-                                 static_cast<uint8_t>(hasActuator);
+                                 static_cast<uint8_t>(hasActuator) +
+                                 static_cast<uint8_t>(hasContextConfirm) +
+                                 static_cast<uint8_t>(hasContextCorrect);
   if (operationCount != 1) {
     emitAck(commandId, false, "unsupported_command");
     return;
@@ -502,6 +649,7 @@ void handleCommandLine(const String& line) {
       return;
     }
     selectedMode = requestedMode;
+    clearContextFeedback();
     decisionDirty = true;
     emitAck(commandId, true);
     return;
@@ -509,15 +657,83 @@ void handleCommandLine(const String& line) {
 
   if (hasSet) {
     JsonObjectConst settings = command["set"].as<JsonObjectConst>();
-    if (settings.size() != 1 ||
-        !command["set"]["buzzerEnabled"].is<bool>()) {
-      emitAck(commandId, false, "unsupported_command");
+    if (settings.size() != 1) {
+      emitAck(commandId, false, "invalid_threshold");
       return;
     }
-    const bool requested = command["set"]["buzzerEnabled"].as<bool>();
-    buzzerEnabled = requested;
+    if (!command["set"]["buzzerEnabled"].isNull()) {
+      if (!command["set"]["buzzerEnabled"].is<bool>()) {
+        emitAck(commandId, false, "unsupported_command");
+        return;
+      }
+      const bool requested = command["set"]["buzzerEnabled"].as<bool>();
+      buzzerEnabled = requested;
+      decisionDirty = true;
+      emitAck(commandId, true);
+      return;
+    }
+    if (!applyThresholdSetting(settings)) {
+      emitAck(commandId, false, "invalid_threshold");
+      return;
+    }
     decisionDirty = true;
+    const uint32_t nowMs = millis();
+    updateDecision(nowMs);
     emitAck(commandId, true);
+    emitTelemetry();
+    lastTelemetryAt = nowMs;
+    return;
+  }
+
+  if (hasContextConfirm) {
+    if (!command["contextConfirm"].is<JsonObjectConst>()) {
+      emitAck(commandId, false, "invalid_context_confirmation");
+      return;
+    }
+    JsonObjectConst confirmation = command["contextConfirm"].as<JsonObjectConst>();
+    const char* candidate = confirmation["candidate"].as<const char*>();
+    if (confirmation.size() != 2 || !isAllowedMode(candidate) ||
+        !confirmation["correct"].is<bool>() ||
+        !confirmation["correct"].as<bool>()) {
+      emitAck(commandId, false, "invalid_context_confirmation");
+      return;
+    }
+    const uint32_t nowMs = millis();
+    if (decisionDirty) updateDecision(nowMs);
+    const ContextMode requestedCandidate = contextModeFromName(candidate);
+    if (currentContext.candidate != requestedCandidate) {
+      emitAck(commandId, false, "candidate_mismatch");
+      return;
+    }
+    contextFeedback.kind = ContextFeedbackKind::Confirmed;
+    contextFeedback.mode = requestedCandidate;
+    decisionDirty = true;
+    updateDecision(nowMs);
+    emitAck(commandId, true);
+    emitTelemetry();
+    lastTelemetryAt = nowMs;
+    return;
+  }
+
+  if (hasContextCorrect) {
+    if (!command["contextCorrect"].is<JsonObjectConst>()) {
+      emitAck(commandId, false, "invalid_context_correction");
+      return;
+    }
+    JsonObjectConst correction = command["contextCorrect"].as<JsonObjectConst>();
+    const char* correctedMode = correction["mode"].as<const char*>();
+    if (correction.size() != 1 || !isAllowedMode(correctedMode)) {
+      emitAck(commandId, false, "invalid_context_correction");
+      return;
+    }
+    contextFeedback.kind = ContextFeedbackKind::Corrected;
+    contextFeedback.mode = contextModeFromName(correctedMode);
+    decisionDirty = true;
+    const uint32_t nowMs = millis();
+    updateDecision(nowMs);
+    emitAck(commandId, true);
+    emitTelemetry();
+    lastTelemetryAt = nowMs;
     return;
   }
 
