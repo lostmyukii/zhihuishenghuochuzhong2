@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -95,6 +96,30 @@ class VoiceTranscribeServerTests(unittest.TestCase):
         result = server.resolve_voice_intent("给我讲一个很长的故事", env={"VOICE_INTENT_PROVIDER": "rules"})
         self.assertEqual(result["intent"], "unknown")
         self.assertLessEqual(result["confidence"], 0.35)
+
+    def test_spark_unknown_uses_rules_only_when_the_whitelist_match_is_explicit(self):
+        async def model_unknown(text, context, env):
+            return server.sanitize_voice_intent(
+                {"intent": "unknown", "confidence": 0.35, "reason": "模型未匹配"},
+                text,
+                "xunfei-spark-ws",
+                "4.0Ultra",
+            )
+
+        env = {
+            "VOICE_INTENT_PROVIDER": "xunfei-spark-ws",
+            "VOICE_INTENT_ALLOW_RULE_FALLBACK": "1",
+        }
+        with mock.patch.object(server, "call_xunfei_spark_intent_async", model_unknown):
+            explicit = server.resolve_voice_intent("屋里有点闷，帮我通通风", env=env)
+            ambiguous = server.resolve_voice_intent("给我讲一个很长的故事", env=env)
+        self.assertEqual(explicit["intent"], "setMode")
+        self.assertEqual(explicit["mode"], "ventilation")
+        self.assertEqual(explicit["provider"], "rules-fallback")
+        self.assertTrue(explicit["degraded"])
+        self.assertEqual(explicit["fallbackReason"], "model_unknown")
+        self.assertEqual(ambiguous["intent"], "unknown")
+        self.assertEqual(ambiguous["provider"], "xunfei-spark-ws")
 
     def test_sanitizer_rejects_modes_hardware_and_mixed_thresholds(self):
         invalid = [

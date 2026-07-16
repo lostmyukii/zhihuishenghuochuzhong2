@@ -552,7 +552,17 @@ def resolve_voice_intent(
         return sanitize_voice_intent(infer_rule_voice_intent(text, context), text, "rules", "rules-v1")
     if provider == "xunfei-spark-ws":
         try:
-            return asyncio.run(call_xunfei_spark_intent_async(text, context, env))
+            upstream = asyncio.run(call_xunfei_spark_intent_async(text, context, env))
+            if upstream.get("intent") != "unknown" or env.get("VOICE_INTENT_ALLOW_RULE_FALLBACK", "1") == "0":
+                return upstream
+            fallback = sanitize_voice_intent(
+                infer_rule_voice_intent(text, context), text, "rules-fallback", "rules-v1"
+            )
+            if fallback.get("intent") == "unknown":
+                return upstream
+            fallback["degraded"] = True
+            fallback["fallbackReason"] = "model_unknown"
+            return fallback
         except (VoiceServiceError, OSError, asyncio.TimeoutError):
             if env.get("VOICE_INTENT_ALLOW_RULE_FALLBACK", "1") == "0":
                 raise
