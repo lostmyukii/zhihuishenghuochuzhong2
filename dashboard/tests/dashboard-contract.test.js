@@ -7,7 +7,7 @@ const dashboard = path.resolve(__dirname, "..");
 const read = (name) => fs.readFileSync(path.join(dashboard, name), "utf8");
 
 test("dashboard ships the integrated realtime artifact set", () => {
-  for (const name of ["index.html", "style.css", "context-core.js", "serial-core.js", "registry-core.js", "voice-core.js", "alert-core.js", "dashboard-state-core.js", "presentation-core.js", "command-ledger-core.js", "app.js"]) {
+  for (const name of ["index.html", "style.css", "context-core.js", "serial-core.js", "registry-core.js", "voice-core.js", "voice-session-core.js", "alert-core.js", "dashboard-state-core.js", "presentation-core.js", "command-ledger-core.js", "app.js"]) {
     assert.equal(fs.existsSync(path.join(dashboard, name)), true, `${name} is missing`);
   }
 });
@@ -77,10 +77,52 @@ test("new pure modules load before the browser application", () => {
   const html = read("index.html");
   const stateAt = html.indexOf("dashboard-state-core.js");
   const presentationAt = html.indexOf("presentation-core.js");
+  const voiceSessionAt = html.indexOf("voice-session-core.js");
   const appAt = html.indexOf("app.js");
-  assert.ok(stateAt >= 0 && presentationAt >= 0 && appAt >= 0);
+  assert.ok(stateAt >= 0 && presentationAt >= 0 && voiceSessionAt >= 0 && appAt >= 0);
   assert.ok(stateAt < appAt);
   assert.ok(presentationAt < appAt);
+  assert.ok(voiceSessionAt < appAt);
+});
+
+test("overview exposes a complete server voice loop and honest fallback", () => {
+  const html = read("index.html");
+  const source = read("app.js");
+  for (const id of [
+    "home-voice-card", "home-voice-start", "home-voice-stop", "home-voice-state",
+    "home-voice-text", "home-voice-intent", "home-voice-command", "home-voice-fallback",
+    "home-voice-submit",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /麦克风音频只在点击识别时发送到服务器，默认不保存/);
+  assert.match(html, /GPIO4声音模块只测强度/);
+  assert.match(html, /识别成功不等于设备执行成功/);
+  assert.match(source, /MediaRecorder/);
+  assert.match(source, /api\/voice\/transcribe/);
+  assert.match(source, /api\/voice\/intent/);
+  assert.match(source, /VoiceCore\.sanitizeServerIntent/);
+  assert.match(source, /VoiceSessionCore/);
+});
+
+test("voice workbench keeps microphone selection, self-test and diagnostics", () => {
+  const html = read("index.html");
+  for (const id of [
+    "voice-mic-select", "voice-mic-refresh", "voice-mic-permission", "voice-mic-test",
+    "voice-mic-start", "voice-mic-stop", "voice-mic-status", "voice-text", "voice-submit", "voice-result",
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+});
+
+test("browser bundle contains no provider or broker secrets", () => {
+  const source = fs.readdirSync(dashboard)
+    .filter((name) => name.endsWith(".js") || name.endsWith(".html"))
+    .map(read)
+    .join("\n");
+  for (const marker of ["XFYUN_APPID", "XFYUN_API_KEY", "XFYUN_API_SECRET", "MQTT_PASSWORD", "APISecret"]) {
+    assert.doesNotMatch(source, new RegExp(marker));
+  }
 });
 
 test("client implements query endpoint, command ledger and stale clearing", () => {

@@ -6,6 +6,7 @@
     <meta name="color-scheme" content="light" />
     <meta name="theme-color" content="#10243e" />
     <title>N16R8 无摄像头家庭情境侦探屋</title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
@@ -112,6 +113,32 @@
                 <article><span>网页语义</span><strong id="source-voice">尚未解析语义</strong><small>网页白名单转换</small></article>
               </div>
 
+              <article id="home-voice-card" class="home-voice-card" aria-labelledby="home-voice-title">
+                <header>
+                  <div><span class="voice-kicker">SERVER VOICE</span><h3 id="home-voice-title">网页语音</h3></div>
+                  <strong id="home-voice-state" data-state="muted">待命</strong>
+                </header>
+                <div class="voice-record-row">
+                  <button id="home-voice-start" class="primary" type="button">开始说话</button>
+                  <button id="home-voice-stop" type="button" disabled>停止</button>
+                  <small>自动录制约4秒</small>
+                </div>
+                <dl class="voice-loop-status">
+                  <div><dt>识别文字</dt><dd id="home-voice-text">尚未识别</dd></div>
+                  <div><dt>白名单意图</dt><dd id="home-voice-intent">尚未解析</dd></div>
+                  <div><dt>命令 / 回执</dt><dd id="home-voice-command">尚未发送</dd></div>
+                </dl>
+                <label class="voice-fallback"><span>文本降级</span><input id="home-voice-fallback" autocomplete="off" placeholder="例如：现在是什么情境" /><button id="home-voice-submit" type="button">解析</button></label>
+                <div class="voice-quick-row" aria-label="语音快捷表达">
+                  <button data-voice-quick="当前是什么情境" type="button">判断情境</button>
+                  <button data-voice-quick="为什么这样判断" type="button">解释依据</button>
+                  <button data-voice-quick="房间有点闷，帮我通风" type="button">湿热通风</button>
+                  <button data-voice-quick="现在安全吗" type="button">安全查询</button>
+                  <button data-voice-quick="蜂鸣器静音" type="button">蜂鸣静音</button>
+                </div>
+                <p class="voice-privacy">麦克风音频只在点击识别时发送到服务器，默认不保存。GPIO4声音模块只测强度，与网页麦克风录音是两条独立数据路径。识别成功不等于设备执行成功，需等待同ID ACK和真实状态。</p>
+              </article>
+
               <div class="truth-table-heading"><strong>计划动作</strong><strong>真实状态</strong><span>实物证据</span></div>
               <div id="actuator-truth-table" class="actuator-truth-table" aria-label="执行器计划与真实状态">
                 <article data-actuator-row="fan"><header>风扇 · GPIO11</header><span id="actuator-plan-fan">—</span><strong id="actuator-actual-fan">—</strong><em id="actuator-verify-fan">待实物验收</em><small id="actuator-fan" hidden>—</small></article>
@@ -167,12 +194,34 @@
 
         <section id="voice" class="workbench" data-workbench="voice" aria-labelledby="voice-title" hidden>
           <section id="voice-console" class="panel">
-            <div class="section-heading"><div><p class="eyebrow">WEB VOICE</p><h1 id="voice-title">网页语音</h1></div><span class="tag">浏览器白名单</span></div>
-            <p class="section-note">自然语句在网页端转为标准命令，主板不运行本地语义模型或MCP。</p>
-            <label class="voice-input"><span>文本测试</span><input id="voice-text" value="我要专心写作业" /></label>
-            <div class="button-row"><button id="voice-submit" class="primary" type="button">解析并执行</button><button data-voice-quick="房间有点闷，帮我通风" type="button">通风情境</button><button data-voice-quick="蜂鸣器静音" type="button">蜂鸣静音</button></div>
-            <div id="voice-result" class="inline-status">尚未解析</div>
-            <article class="future-card"><strong>麦克风输入</strong><p>批次B加入用户主动授权、自检和浏览器不支持时的文本降级。</p></article>
+            <div class="section-heading"><div><p class="eyebrow">WEB VOICE</p><h1 id="voice-title">网页语音</h1></div><span class="tag">服务端识别 · 双重白名单</span></div>
+            <p class="section-note">用户主动授权录音，服务器完成讯飞语音识别与自然语义解析，Dashboard再次校验后才可能形成标准命令；主板不运行本地语义模型或MCP。</p>
+            <div class="voice-workbench-grid">
+              <section class="voice-diagnostic-card" aria-labelledby="voice-device-title">
+                <div class="subsection-heading"><h2 id="voice-device-title">麦克风与自检</h2><strong id="voice-mic-status" data-state="muted">尚未授权</strong></div>
+                <label class="voice-input"><span>输入设备</span><select id="voice-mic-select"><option value="">系统默认麦克风</option></select></label>
+                <div class="button-row">
+                  <button id="voice-mic-refresh" type="button">刷新设备</button>
+                  <button id="voice-mic-permission" type="button">授权麦克风</button>
+                  <button id="voice-mic-test" type="button">1秒音量自检</button>
+                </div>
+                <div class="button-row">
+                  <button id="voice-mic-start" class="primary" type="button">开始说话</button>
+                  <button id="voice-mic-stop" type="button" disabled>停止</button>
+                </div>
+                <p class="voice-privacy">网页不会持续监听。麦克风音频只在点击识别时发送到服务器，默认不保存；麦克风权限被拒绝时仍可使用右侧文本输入。</p>
+              </section>
+              <section class="voice-diagnostic-card" aria-labelledby="voice-text-title">
+                <div class="subsection-heading"><h2 id="voice-text-title">文字与意图诊断</h2><span class="tag">安全降级</span></div>
+                <label class="voice-input"><span>识别文字 / 文本测试</span><input id="voice-text" autocomplete="off" value="我要专心写作业" /></label>
+                <div class="button-row"><button id="voice-submit" class="primary" type="button">提交服务端解析</button><button data-voice-quick="当前是什么情境" type="button">情境查询</button><button data-voice-quick="为什么这样判断" type="button">解释依据</button><button data-voice-quick="房间有点闷，帮我通风" type="button">通风情境</button><button data-voice-quick="蜂鸣器静音" type="button">蜂鸣静音</button></div>
+                <div id="voice-result" class="inline-status" role="status" aria-live="polite">尚未解析</div>
+              </section>
+            </div>
+            <div class="voice-contract-note">
+              <strong>两条声音路径明确分离</strong>
+              <p>GPIO4声音传感器只上报相对强度；网页麦克风只在主动点击后录制短音频。识别成功不等于设备执行成功，控制命令必须等待同ID ACK，实物结果仍以新遥测和逐项验收为准。</p>
+            </div>
           </section>
         </section>
 
@@ -205,6 +254,7 @@
     <script src="./serial-core.js"></script>
     <script src="./registry-core.js"></script>
     <script src="./voice-core.js"></script>
+    <script src="./voice-session-core.js"></script>
     <script src="./alert-core.js"></script>
     <script src="./dashboard-state-core.js"></script>
     <script src="./presentation-core.js"></script>
