@@ -1,0 +1,18 @@
+[Unit]
+Description=SmartLife Context Detective Dashboard on 19467
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/smartlife-context-detective
+ExecStart=/home/ubuntu/smartlife-context-detective/.venv/bin/python -m http.server 19467 --bind 127.0.0.1 --directory /home/ubuntu/smartlife-context-detective/dashboard
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

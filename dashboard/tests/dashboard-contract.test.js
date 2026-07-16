@@ -7,7 +7,7 @@ const dashboard = path.resolve(__dirname, "..");
 const read = (name) => fs.readFileSync(path.join(dashboard, name), "utf8");
 
 test("dashboard ships the integrated realtime artifact set", () => {
-  for (const name of ["index.html", "style.css", "context-core.js", "serial-core.js", "registry-core.js", "voice-core.js", "voice-session-core.js", "alert-core.js", "dashboard-state-core.js", "presentation-core.js", "command-ledger-core.js", "app.js"]) {
+  for (const name of ["index.html", "style.css", "context-core.js", "serial-core.js", "registry-core.js", "voice-core.js", "voice-session-core.js", "alert-core.js", "dashboard-state-core.js", "presentation-core.js", "command-ledger-core.js", "cloud-core.js", "app.js"]) {
     assert.equal(fs.existsSync(path.join(dashboard, name)), true, `${name} is missing`);
   }
 });
@@ -78,11 +78,25 @@ test("new pure modules load before the browser application", () => {
   const stateAt = html.indexOf("dashboard-state-core.js");
   const presentationAt = html.indexOf("presentation-core.js");
   const voiceSessionAt = html.indexOf("voice-session-core.js");
+  const cloudAt = html.indexOf("cloud-core.js");
   const appAt = html.indexOf("app.js");
-  assert.ok(stateAt >= 0 && presentationAt >= 0 && voiceSessionAt >= 0 && appAt >= 0);
+  assert.ok(stateAt >= 0 && presentationAt >= 0 && voiceSessionAt >= 0 && cloudAt >= 0 && appAt >= 0);
   assert.ok(stateAt < appAt);
   assert.ok(presentationAt < appAt);
   assert.ok(voiceSessionAt < appAt);
+  assert.ok(cloudAt < appAt);
+});
+
+test("public cloud bridge keeps WSS MQTT and board truth separate", () => {
+  const html = read("index.html");
+  const source = read("app.js");
+  const cloud = read("cloud-core.js");
+  assert.match(html, /独立 WSS \/ MQTT Relay/);
+  assert.match(source, /CloudCore\.decorateBoardFrame/);
+  assert.match(source, /CloudCore\.commandForSerial/);
+  assert.match(source, /mqttConnected/);
+  assert.match(cloud, /smartlife-context-ws/);
+  assert.match(cloud, /originClientId/);
 });
 
 test("overview exposes a complete server voice loop and honest fallback", () => {

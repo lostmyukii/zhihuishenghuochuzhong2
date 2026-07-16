@@ -30,7 +30,7 @@
         <div><span>开发板</span><strong id="board-status" data-state="waiting">等待实时数据</strong></div>
         <div><span>Web Serial / USB</span><strong id="usb-status" data-state="muted">未连接</strong></div>
         <div><span>WebSocket</span><strong id="ws-status" data-state="waiting">连接中</strong></div>
-        <div><span>MQTT</span><strong id="mqtt-status" data-state="muted">后续接入</strong></div>
+        <div><span>MQTT</span><strong id="mqtt-status" data-state="muted">等待云端</strong></div>
         <div><span>数据源</span><strong id="source-status" data-state="waiting">无实时数据</strong></div>
         <div><span>当前情境</span><strong id="current-mode-pill" data-state="accent">情境侦探</strong></div>
         <div><span>最后遥测</span><strong id="telemetry-age" data-state="waiting">—</strong></div>
@@ -167,7 +167,7 @@
             <div class="connection-grid">
               <div><span>Web Serial 主链路</span><strong>Chrome / Edge · 115200</strong><div class="button-row"><button id="serial-connect" class="primary" type="button">连接开发板</button><button id="serial-disconnect" type="button" disabled>断开</button></div></div>
               <div><span>Python WebSocket 备用</span><strong id="ws-endpoint">—</strong><small>同一时刻不要与Web Serial共同占用CH340</small></div>
-              <div><span>公网扩展</span><strong>WSS / MQTT 后续接入</strong><small>没有真实服务时保持未配置</small></div>
+              <div><span>公网扩展</span><strong>独立 WSS / MQTT Relay</strong><small>云端在线与开发板新鲜遥测分开判断</small></div>
             </div>
           </details>
         </section>
@@ -259,6 +259,7 @@
     <script src="./dashboard-state-core.js"></script>
     <script src="./presentation-core.js"></script>
     <script src="./command-ledger-core.js"></script>
+    <script src="./cloud-core.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

@@ -1,0 +1,20 @@
+[Unit]
+Description=SmartLife Context Detective WSS MQTT Relay on 19466
+After=network.target smartlife-context-mqtt.service
+Wants=smartlife-context-mqtt.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/smartlife-context-detective
+EnvironmentFile=/home/ubuntu/smartlife-context-detective/deploy/.env
+ExecStart=/home/ubuntu/smartlife-context-detective/.venv/bin/python /home/ubuntu/smartlife-context-detective/tools/n16r8_cloud_relay.py
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

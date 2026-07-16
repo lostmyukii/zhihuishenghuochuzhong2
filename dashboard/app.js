@@ -8,7 +8,9 @@
   const MAX_RECENT_ITEMS = 5;
   const WORKBENCHES = new Set(["overview", "registry", "linkage", "voice", "debug", "logs"]);
   const searchParams = new URLSearchParams(window.location.search);
-  const endpoint = searchParams.get("ws") || "ws://127.0.0.1:18766";
+  const endpoint = CloudCore.defaultEndpoint(window.location, searchParams.get("ws") || "");
+  const cloudClientId = CloudCore.createClientId();
+  const publicCloud = CloudCore.isPublicEndpoint(endpoint);
   const localVoice = ["127.0.0.1", "localhost"].includes(window.location.hostname);
   const transcribeEndpoint = searchParams.get("stt") || (localVoice ? "http://127.0.0.1:19468/api/voice/transcribe" : "/api/voice/transcribe");
   const intentEndpoint = searchParams.get("intent") || (localVoice ? "http://127.0.0.1:19468/api/voice/intent" : "/api/voice/intent");
@@ -120,17 +122,36 @@
     socket.addEventListener("open", () => {
       websocketOpen = true;
       setStatus("ws-status", "已连接", "ok");
+      setStatus("mqtt-status", publicCloud ? "等待Relay状态" : "本地链路", publicCloud ? "waiting" : "muted");
       logEvent("WebSocket 已连接，等待项目数据");
       refreshConnectionTruth();
     });
-    socket.addEventListener("message", (event) => {
+    socket.addEventListener("message", async (event) => {
       let frame;
       try { frame = JSON.parse(event.data); } catch (_error) { return; }
-      dispatchFrame(frame, "websocket");
+      const kind = CloudCore.classifyIncoming(frame, cloudClientId);
+      if (kind === "relay-status") {
+        setStatus("mqtt-status", frame.mqttConnected === true ? "云端同步" : "Relay在线 · MQTT离线", frame.mqttConnected === true ? "ok" : "waiting");
+        return;
+      }
+      if (kind === "command") {
+        if (!serialWriter) return;
+        const command = CloudCore.commandForSerial(frame);
+        if (!command) return;
+        try {
+          await serialWriter.write(textEncoder.encode(SerialCore.encodeCommand(command)));
+          logEvent(`远程命令已写入Web Serial ${command.id}`);
+        } catch (error) {
+          logEvent(`远程命令写入失败 ${command.id} · ${error.name || error.message}`);
+        }
+        return;
+      }
+      if (kind === "board") dispatchFrame(frame, "websocket");
     });
     socket.addEventListener("close", () => {
       websocketOpen = false;
       setStatus("ws-status", "重连中", "waiting");
+      setStatus("mqtt-status", publicCloud ? "云端断开" : "本地链路断开", "waiting");
       if (!serialPort) rejectPending("WebSocket 已断开");
       if (currentSource === "websocket") clearTelemetry();
       if (latestHelloSource === "websocket") {
@@ -177,7 +198,13 @@
       while (serialReader) {
         const {value, done} = await serialReader.read();
         if (done) break;
-        parser.push(textDecoder.decode(value, {stream: true})).forEach((frame) => dispatchFrame(frame, "serial"));
+        parser.push(textDecoder.decode(value, {stream: true})).forEach((frame) => {
+          dispatchFrame(frame, "serial");
+          if (publicCloud && socket?.readyState === WebSocket.OPEN) {
+            const outgoing = CloudCore.decorateBoardFrame(frame, cloudClientId);
+            if (outgoing) socket.send(JSON.stringify(outgoing));
+          }
+        });
       }
     } catch (error) {
       if (serialPort) logEvent(`串口读取中断：${error.name || error.message}`);
@@ -432,7 +459,9 @@
         await serialWriter.write(textEncoder.encode(SerialCore.encodeCommand(command)));
         route = "Web Serial";
       } else if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify(command));
+        const outgoing = publicCloud ? CloudCore.decorateClientCommand(command, cloudClientId) : command;
+        if (!outgoing) throw new Error("云端命令身份不完整");
+        socket.send(JSON.stringify(outgoing));
         route = "WebSocket";
       }
     } catch (error) {

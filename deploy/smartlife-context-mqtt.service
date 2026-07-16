@@ -1,0 +1,18 @@
+[Unit]
+Description=SmartLife Context Detective MQTT Broker on 19483
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/smartlife-context-detective
+ExecStart=/usr/sbin/mosquitto -c /home/ubuntu/smartlife-context-detective/deploy/mosquitto-context.conf
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
