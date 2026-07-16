@@ -53,6 +53,7 @@ class DeployContractTests(unittest.TestCase):
         self.assertIn("127.0.0.1:19467", https)
         self.assertIn("127.0.0.1:19466", https)
         self.assertIn("127.0.0.1:19468", https)
+        self.assertIn("X-Forwarded-For $proxy_add_x_forwarded_for", https)
         self.assertNotIn("zhinengshenghuo.ilelezhan.cn", http + https)
 
 

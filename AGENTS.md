@@ -20,11 +20,12 @@
 | 串口 | CH340 UART，`115200` |
 | 当前连接路线 | N16R8 -> Web Serial/Python网关 -> Dashboard -> WSS/MQTT |
 | 语音语义 | 网页端链路判断；主板不运行本地语义模型或MCP |
+| 公网Dashboard | `https://zhihuishenghuochu2.ilelezhan.cn/` |
 | GitHub | `https://github.com/lostmyukii/zhihuishenghuochuzhong2.git` |
 
 ## 当前阶段
 
-阶段0至阶段5软件基线、`0.4.0`应用区烧录/静态串口验收、证据链Dashboard批次A及网页语音批次B1/B2/B3已经完成。当前开发板仍运行`0.4.0`；仓库中的`0.4.1`只是已通过测试和PIO纯编译的候选源码，尚未烧录。最近一次真板验收只检查启动保护、传感器、MQ2预热和默认安全状态，没有发送模式或执行器命令。本轮网页语音实现只运行软件测试、显式Mock和浏览器闭环，没有连接串口、烧录或发送真板命令。
+阶段0至阶段5软件基线、`0.4.0`应用区烧录/静态串口验收、证据链Dashboard批次A、网页语音批次B1/B2/B3及独立公网批次B4/B5已经完成。当前开发板仍运行`0.4.0`；仓库中的`0.4.1`只是已通过测试和PIO纯编译的候选源码，尚未烧录。最近一次真板验收只检查启动保护、传感器、MQ2预热和默认安全状态，没有发送模式或执行器命令。本轮公网实现只运行软件测试、显式Mock、公网服务与浏览器闭环，没有连接串口、烧录或发送真板命令。
 
 - `0.4.0`按200ms采集快速输入、按2000ms读取DHT，并输出数值、有效性、数据年龄、情境证据、安全判断、逻辑动作目标和真实驱动状态。
 - DHT最近有效值最多保留6000ms；MQ2预热30000ms；水滴和火焰使用连续3帧确认及3帧恢复。MQ2暂定报警/恢复阈值`2600/2400`、水滴/火焰触发电平和其他阈值仍待真板复核。
@@ -36,6 +37,8 @@
 - Dashboard必须分开显示计划目标、实际应用、Mock模拟执行、启动保护和硬件验收状态；3500ms没有新鲜遥测后清除旧结论。
 - Dashboard现有六个hash工作台和五节点证据链；`dashboard-state-core.js`、`presentation-core.js`、`command-ledger-core.js`分别负责连接真相、诚实呈现和同ID命令台账。ACK成功或后续看到遥测仍不等于实物已经验收。
 - 首页网页语音现使用服务端STT/自然语义与浏览器第二道白名单。`0.4.1`候选源码和显式Mock已补齐`confirmContext/correctContext/setThreshold`同ID ACK、后续遥测和RAM阈值合同；Dashboard只有从当前数据源的匹配`hello.capabilities.commands`看到对应能力时才允许下发，否则仍显示“固件待升级”。当前真板`0.4.0`因此继续被安全拦截。
+- 公网固定使用`zhihuishenghuochu2.ilelezhan.cn`、`/smartlife-context-ws`、`/api/voice/`和MQTT Topic前缀`smartlife/context-detective/n16r8`。服务器运行目录为`/home/ubuntu/smartlife-context-detective`，四个`smartlife-context-*`服务只监听`127.0.0.1:19466/19467/19468/19483`，不得借用或重启相邻项目服务。
+- 公网页面只有浏览器持有Web Serial时才充当USB网关；远程浏览器命令经项目/画像、Origin和双重白名单校验后转交该网关。WSS、MQTT、开发板新鲜遥测和同ID ACK仍分别判断，云端在线不能冒充真板在线。
 - 新鲜、非Mock、项目/画像匹配的真板遥测已经到达，但同源启动`hello`未被浏览器捕获时，状态必须为`real-telemetry`：开发板显示“真板遥测在线”，数据源显示“未捕获启动身份”，不得回落为“无实时数据”，也不得冒充完整“真板在线”。
 - 本轮烧录与静态采样授权已经使用完毕，当前默认回到契约测试、`pio run`纯编译、本地Mock网关与静态Dashboard。下一次真板控制或再次写入仍需用户明确授权。
 - 任何后续PIO应用写入仍只允许`0x10000`，写后独立校验；不得擦除或覆盖bootloader、分区表、NVS、Wi-Fi或小智激活数据。
@@ -55,6 +58,8 @@
 2026-07-16网页语音批次B1/B2软件证据：服务端语音接口、讯飞IAT/星火Ultra适配、本项目规则回退、首页麦克风/文本入口、浏览器第二道白名单、语音会话状态机和同ID ACK展示已实现。Dashboard Node 62项、Python 44项、全部Dashboard JavaScript语法检查通过；真实Chromium完成文本情境查询和“湿热通风”`intent -> command -> ack -> telemetry`显式Mock闭环，控制台0错误。自动化浏览器未完成人工麦克风授权，不把真实音频识别写成通过。PIO纯编译`[SUCCESS]`，RAM`19712 / 327680 bytes`（6.0%），Flash`325881 / 6553600 bytes`（5.0%）；没有上传、串口、USB或真板控制。
 
 2026-07-16网页语音批次B3软件证据：`0.4.1`候选源码、显式Mock和Dashboard已补齐情境确认、情境纠正和单项阈值协议；五项阈值只保存在RAM，复位恢复源码默认值，不写NVS。真实Chromium依次完成“确认当前判断”“纠正为安心休息”“声音阈值调高一点”的`intent -> command -> same-id ack -> telemetry`闭环，控制台0错误。Python 47项、Node 64项及全部Dashboard JavaScript语法检查通过；PIO纯编译`[SUCCESS]`，RAM`19728 / 327680 bytes`（6.0%），Flash`330017 / 6553600 bytes`（5.0%）。没有上传、串口、USB或真板控制。
+
+2026-07-16独立公网批次B4/B5部署证据：`https://zhihuishenghuochu2.ilelezhan.cn/`返回200，Let's Encrypt证书有效期至2026-10-14；四个`smartlife-context-*`服务均为`enabled/active`，194xx端口只监听回环地址。公网真实讯飞IAT把系统合成短音频识别为“屋里有点闷，帮我通通风”；星火输出`unknown`时仅在确定性规则明确命中安全白名单后标记`degraded=true`降级，含糊文本仍保持`unknown`。公网WSS完成双客户端命令、同ID ACK和后续遥测闭环；真实Chromium显示Mock在线、MQTT云端同步、通风命令ACK成功且已见新遥测，控制台0错误。测试后已清空保留Mock帧。部署前后原有SmartLife服务状态/PID无变化，三个原站点仍返回200；凭据只存在服务器`600`权限环境文件，未进入Git或浏览器。最终回归为Python 61项、Node 71项及全部Dashboard JavaScript语法检查通过；PIO纯编译`[SUCCESS]`，RAM`19728 / 327680 bytes`、Flash`330017 / 6553600 bytes`，没有烧录或串口操作。
 
 阶段2固定本地端口：WebSocket网关 `127.0.0.1:18766`，静态Dashboard `127.0.0.1:18767`。标准启动命令：
 
@@ -225,4 +230,4 @@ PLATFORMIO_SETTING_ENABLE_TELEMETRY=no \
 
 ## 下一阶段顺序
 
-`0.4.0`应用区烧录、独立校验、5秒启动保护、30秒MQ2预热静态验收、Dashboard批次A和网页语音批次B1/B2/B3已完成。仓库中的`0.4.1`候选源码尚未烧录，当前真板仍不具备B3新增命令能力。独立公网部署必须先使用新域名并在服务器交互式写入轮换后的凭据，不得复用聊天中已暴露的值。真板路线仍只能在用户再次明确授权后进行`0.4.1`应用区写入与只读协议验收，或逐个低压执行器动作验收。完成对应人工证据前不得把风扇、舵机、继电器或RGB写成已验收，也不得声称整屋物理联动已经通过。
+`0.4.0`应用区烧录、独立校验、5秒启动保护、30秒MQ2预热静态验收、Dashboard批次A、网页语音批次B1/B2/B3及独立公网批次B4/B5已完成。仓库中的`0.4.1`候选源码尚未烧录，当前真板仍不具备B3新增命令能力。公网凭据只保存在服务器`deploy/.env`，不得复制回Git、浏览器、日志或开发文档。真板路线仍只能在用户再次明确授权后进行`0.4.1`应用区写入与只读协议验收，或逐个低压执行器动作验收。完成对应人工证据前不得把风扇、舵机、继电器或RGB写成已验收，也不得声称整屋物理联动已经通过。
